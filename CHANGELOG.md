@@ -21,7 +21,7 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 ### Added
 
 - Press `D` to drop items from your inventory. Bag items drop instantly; equipped gear (Weapon / Armor / Ring) prompts to confirm before unequipping.
-- Walk onto a tile while your bag is full to be prompted to swap something in your inventory for the new item — completes in a single turn.
+- When you pick up an item with a full bag, you're prompted to swap something in your inventory for the new item — completes in a single turn.
 - Scrollable message log (`m` key) surfacing the full 80-message buffer in a bottom-anchored modal. PgUp/PgDn/↑↓/jk/Home/End scroll bindings; freshness gradient (gold-bold newest → silver/dim oldest).
 
 ### Changed
