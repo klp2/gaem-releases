@@ -5,6 +5,27 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.2.0] - 2026-06-12
+
+### Added
+
+- **Pantheon & victory monuments.** Victorious characters are enshrined in the Pantheon; a new **Pantheon tab** lists ENSHRINED victors and THE FALLEN. **Victory monuments (▲)** spawn on descending floors of later runs once you have a victor — collecting one grants a gold tithe, a category gear roll, and rune fragments.
+- **A richer legacy for the fallen.** Dead characters now carry **names**, leave **visitable graves** with map markers, can return as **class-themed nemesis variants** that grant a **boon on kill**, and pass on **inherited weapons plus 6 legacy passives**.
+- **Multiple save worlds.** The meta menu gains **[W] Worlds** — up to 5 independent progression worlds with create / switch / delete; **[P]** jumps to the Pantheon tab.
+- **Per-turn autosave.** Runs autosave every turn, so a crash or power loss resumes at the exact turn via **[C] Continue** (death and victory still delete the save by design).
+
+### Changed
+
+- **Save data layout.** Saves now live under `profiles/default/`; the first launch after upgrading silently migrates your save data there (lossless, mid-run-safe). One-time migration.
+- **Corrupt-save handling.** A corrupt or newer-version `meta.json` is now backed up to a timestamped `.bak` with an on-screen notice instead of being silently reset; older saves load unchanged.
+- **Atomic save writes.** Save files are written atomically; a present-but-unreadable `meta.json` is backed up before the next save replaces it.
+
+### Fixed
+
+- **survivor / ascendant max-HP rewards now apply.** Both were silently wiped by stat recalculation (survivor's +5 was dead since launch; ascendant's +10% died on first recompute). Players with either achievement unlocked will see their max HP genuinely rise for the first time — expected correction, not a buff.
+- **Grave markers no longer crowd onto adjacent tiles.**
+- **No more stale legacy grave reference** when the last fallen entry is evicted from an all-victor archive.
+
 ## [v0.1.6] - 2026-06-12
 
 ### Fixed
@@ -39,6 +60,7 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 
 - Multi-item tiles now render `*` as the stack glyph, and the examine cursor lists every item on a tile (previously the render and examine paths each stopped at the first item, hiding stacks from view).
 
+[v0.2.0]: https://github.com/klp2/gaem-releases/releases/tag/v0.2.0
 [v0.1.6]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.6
 [v0.1.5]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.5
 [v0.1.4]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.4
