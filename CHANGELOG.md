@@ -5,6 +5,13 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.1.6] - 2026-06-12
+
+### Fixed
+
+- Floor-count achievements (Cartographer and the other floors-descended milestones) now progress. The "floors descended" counter was stuck at zero, so these achievements never advanced. Characters with pre-fix history will see them unlock late as the counter catches up — expected retroactive catch-up, not a bug.
+- `gaem agent-playtest` no longer corrupts your saved data. The autonomous-run harness was writing to your real save file and deleting your in-progress run; harness runs are now fully sandboxed and never touch live saves.
+
 ## [v0.1.5] - 2026-05-03
 
 ### Added
@@ -32,5 +39,6 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 
 - Multi-item tiles now render `*` as the stack glyph, and the examine cursor lists every item on a tile (previously the render and examine paths each stopped at the first item, hiding stacks from view).
 
+[v0.1.6]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.6
 [v0.1.5]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.5
 [v0.1.4]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.4
