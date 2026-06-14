@@ -5,6 +5,26 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.3.0] - 2026-06-14
+
+### Added
+
+- **In-game player feedback.** Press **Z** anywhere — meta menu or mid-run — to open a 4-step feedback wizard and send a note straight to the developers. Submission is asynchronous (it never blocks the game) with an **offline fallback**: if it can't reach the network your feedback is saved locally so nothing is lost.
+- **In-game changelog.** A new meta-menu tab shows the release notes for the build you're running.
+- **Build version on the meta menu.** The running build's version is now shown on the meta menu.
+- **Sell any inventory item, with buyback.** The merchant sell flow now opens a picker so you choose exactly which inventory item to sell; sold items re-enter the merchant's stock at full buy price, so you can buy them back. No arbitrage — you pay the normal buy/sell spread.
+- **Merchant purchase confirmation.** Buying from a merchant now asks for a Y/N confirmation before the gold leaves your purse.
+- **Equipped-vs-stock stat deltas at the merchant.** The merchant overlay shows how each stocked item compares, stat by stat, to what you currently have equipped.
+- **Numpad diagonal movement.** Diagonal steps now work from the numeric keypad (7/9/1/3, NumLock off).
+
+### Changed
+
+- **Gentler early-game hunger.** Fresh profiles start with more rations, ground food drops more often, merchants stock food, and hunger drains more slowly — early-game food pressure is loosened while the hunger-vs-exploration tension remains.
+
+### Fixed
+
+- **Quitting to the menu mid-run no longer exits the game.** Choosing quit-to-menu during a run now returns to the meta menu instead of closing gaem entirely.
+
 ## [v0.2.0] - 2026-06-12
 
 ### Added
@@ -59,8 +79,3 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 ### Fixed
 
 - Multi-item tiles now render `*` as the stack glyph, and the examine cursor lists every item on a tile (previously the render and examine paths each stopped at the first item, hiding stacks from view).
-
-[v0.2.0]: https://github.com/klp2/gaem-releases/releases/tag/v0.2.0
-[v0.1.6]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.6
-[v0.1.5]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.5
-[v0.1.4]: https://github.com/klp2/gaem-releases/releases/tag/v0.1.4
