@@ -5,6 +5,13 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.3.3] - 2026-06-14
+
+### Fixed
+
+- **Feedback submissions now include your run log.** When you choose to attach your run log to in-game feedback, the log file is now actually delivered with the message — previously it was silently dropped, so reports arrived without it.
+- **The feedback consent screen no longer promises a run log it can't send.** On the meta menu (or very early in a run, before anything is logged) the screen used to say your run log would be attached even when there was nothing to send; it now offers the attachment only once the log has content.
+
 ## [v0.3.2] - 2026-06-14
 
 ### Fixed
