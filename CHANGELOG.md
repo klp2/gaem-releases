@@ -5,6 +5,12 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.3.1] - 2026-06-14
+
+### Fixed
+
+- **In-game feedback wizard now works in a live terminal.** The feedback wizard (press **Z**) rendered but never repainted as you moved through its steps, so it looked frozen and couldn't be used — the v0.3.0 feedback feature now updates the screen each step and responds to input as expected.
+
 ## [v0.3.0] - 2026-06-14
 
 ### Added
