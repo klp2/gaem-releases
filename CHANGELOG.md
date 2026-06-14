@@ -5,6 +5,13 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.3.2] - 2026-06-14
+
+### Fixed
+
+- **Merchants are no longer easy to mistake for a pile of gold.** The merchant now appears as a distinct shopkeeper's house (⌂) in aqua, instead of the gold-colored `$` it shared with gold piles.
+- **Merchants you've already found stay marked on the map.** A merchant now remains visible (dimmed) on your explored map after you walk away, like walls and stairways, instead of vanishing the moment it leaves your view.
+
 ## [v0.3.1] - 2026-06-14
 
 ### Fixed
