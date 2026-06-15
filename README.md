@@ -5,6 +5,10 @@
 
 Pre-built cross-platform binaries for **gaem**, a terminal roguelike.
 
+## Community & Feedback
+
+Questions, bugs, or feedback: [join the Discord](https://discord.gg/xpgAECf4Dh).
+
 ## Download
 
 Grab the latest archive from the **[Releases](https://github.com/klp2/gaem-releases/releases/latest)** page.
