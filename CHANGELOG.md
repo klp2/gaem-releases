@@ -5,6 +5,12 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.3.4] - 2026-06-15
+
+### Added
+
+- **In-game update check.** The meta menu now shows a one-line banner when a newer release is available, with a text-only **[U]** overlay that links the release page and walks you through manual install. The check is a once-a-day, read-only call to the GitHub releases API — it sends no player data, is skipped for development builds, and can be turned off entirely with `GAEM_NO_UPDATE_CHECK=1`.
+
 ## [v0.3.3] - 2026-06-14
 
 ### Fixed
