@@ -5,6 +5,16 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.4.0] - 2026-07-05
+
+### Added
+
+- **Revamped dungeon floor generation.** The descent now passes through multiple distinct regions, each with its own architecture and colors, plus new terrain hazards.
+
+### Changed
+
+- **Rebalanced enemy and loot density across the deeper floors.**
+
 ## [v0.3.4] - 2026-06-15
 
 ### Added
