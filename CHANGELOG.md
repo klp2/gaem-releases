@@ -5,6 +5,14 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.5.0] - 2026-07-12
+
+### Added
+- **Sealed Vaults.** Certain floors now hide a sealed gate leading to an optional side chamber — a self-contained, high-risk detour with its own dangers and rewards. Clearing enough of them opens a new path to a true ending.
+
+### Fixed
+- **Several mutations now work as intended.** A handful of selectable mutations had no effect when chosen; they're now fully wired up.
+
 ## [v0.4.0] - 2026-07-05
 
 ### Added
