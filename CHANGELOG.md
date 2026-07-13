@@ -5,6 +5,13 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.5.1] - 2026-07-12
+
+### Fixed
+- Fixed a new run starting with the previous character's state after a death in the same session.
+- Fixed the feedback box's character counter hiding the end of the message.
+- Fixed lowercase 'c' not working on meta menu tabs when a saved run exists.
+
 ## [v0.5.0] - 2026-07-12
 
 ### Added
