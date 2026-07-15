@@ -5,6 +5,17 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.7.0] - 2026-07-15
+
+### Added
+- Opt-in run-log sharing: after a run, you can choose to start sharing a redacted slice of your run logs to help with balance and bug fixes. Off by default, switchable anytime from the new Settings screen (`[S]`).
+
+### Fixed
+- Fixed long item, skill, and gear names occasionally showing a broken character when truncated, and a merchant price-delta tag that could drift out of place.
+- Named heirloom weapons (like the Watch Warden's Blade) now keep their name and bonus when inherited, instead of being renamed with a random bonus.
+- Fixed the Deep Explorer and Treasure Hunter achievements never tracking progress.
+- Fixed five achievements (Deathless, Starving Artist, Pacifist, Combo King, Untouched) that were impossible to earn due to untracked counters.
+
 ## [v0.6.1] - 2026-07-15
 
 ### Fixed
