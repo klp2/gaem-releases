@@ -5,6 +5,11 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.6.1] - 2026-07-15
+
+### Fixed
+- Fixed the game not starting on Windows. v0.6.0 crashed on launch before reaching the menu; Linux and macOS were unaffected. No save data or progress is touched.
+
 ## [v0.6.0] - 2026-07-14
 
 ### Added
