@@ -9,6 +9,12 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 
 ### Fixed
 - Fixed the game not starting on Windows. v0.6.0 crashed on launch before reaching the menu; Linux and macOS were unaffected. No save data or progress is touched.
+- **The feedback consent screen now describes the attached log correctly.** It said it would attach "this run's log"; the log actually covers your whole session — every run since you launched the game. This is a wording fix, not a behavior change: the log always covered the full session, and nothing about what is collected or sent has changed. The screen was wrong; the data is the same.
+- Fixed the Gravedigger background's damage reduction against undead switching off if you edited or translated enemy names.
+- Fixed frame titles and the death-summary line rendering wrong with accented or non-Latin characters.
+
+### Changed
+- Inventory rows now abbreviate heirloom passives and shorten long item names so the passive and free rune slots stay visible. The full name, passive and description are on the examine card.
 
 ## [v0.6.0] - 2026-07-14
 
