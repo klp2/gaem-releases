@@ -5,6 +5,26 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.6.0] - 2026-07-14
+
+### Added
+- **Inventory rework.** Move a cursor through your bag with the arrow keys, examine any item in place, and unequip straight to the bag. Letter keys still work as before.
+- **Mouse-wheel scrolling** in the message log.
+- **Text overrides.** Every player-facing string now loads from data files you can edit; `gaem dump-strings` writes out a copy to start from. English only for now.
+
+### Changed
+- The bag sorts itself — category first, then value.
+- `i` closes the inventory as well as opening it. Bag slots skip the letter `i`.
+- Flavor text reworked across the game: floor arrivals, boss lines, patron and rune lore, and character backstories now vary between runs.
+- Floors shift in color as you descend through a region.
+- A one-time update to enemy knowledge on first launch — your bestiary progress carries over.
+
+### Fixed
+- Summoned minions no longer pay out XP, essence, gold, loot, or contract progress. Bestiary knowledge still counts.
+- Gold picked up off the floor now counts toward your run totals.
+- Fixed swap-on-pickup offering an equipped item the new item couldn't replace, which could wedge an unreachable slot in the bag.
+- `gaem recover-meta` rebuilds Regard kills, all-seals runs, and true-ending victories.
+
 ## [v0.5.1] - 2026-07-12
 
 ### Fixed
