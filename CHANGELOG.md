@@ -5,6 +5,27 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.8.0] - 2026-07-16
+
+### Added
+- Browse the merchant's shop: scroll through the stock and your sell list with the arrow keys, and examine any item before buying or selling.
+- The run summary lists each contract with its reward and progress.
+- Bag capacity is now 20 slots, up from 15.
+
+### Changed
+- **Combat rebalance.** Armor now reduces damage proportionally instead of subtracting a flat amount — defense always matters, but never shrinks a hit to nothing. Enemies chip harder, especially bosses and on the early floors; heavily-armored enemies take a little less from you.
+- Enemies scale more smoothly as you descend (floors 2–3 ease off slightly). Elites hit noticeably harder, Tough elites gain real armor, and the floor 6, 9, and 12 bosses have more HP.
+- Loot rebalanced: less gear, more potions and gold. Floors 1–3 spawn more items, and a fresh run starts with 4 rations instead of 3.
+
+### Fixed
+- Five upgrade capstones (Provisions, Keen Eye, Merchant's Favor, Second Wind, Midas Touch) could be bought but did nothing. All five now work.
+- Rings now grant what they say: Rings of Wisdom, Insight, and Fortune did nothing at all, and a Constitution ring never gave its max HP. Every ring is now worth exactly its printed stat points — which also means Ring of Protection's defense drops from +3 to +1.
+- Floors 14–15 no longer drop only the weakest gear.
+- The death screen no longer swaps its parting words on every keypress, and they match the message log.
+- Potion text shows the amounts you'll actually get with your bonuses applied.
+- A line of forge flavor text that could never fit on screen now appears.
+- `gaem recover-meta` no longer over-counts floors by one per won run, and it now reconstructs your lifetime relic shards. (Older reports advised zeroing the floors counter — that advice was wrong and is gone.)
+
 ## [v0.7.0] - 2026-07-15
 
 ### Added
