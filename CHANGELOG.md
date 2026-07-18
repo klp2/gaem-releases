@@ -5,6 +5,32 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.9.0] - 2026-07-18
+
+### Added
+- **A seventh patron: the Dust-Crown.** Its pact trades a boon that grows with your Pantheon for an essence tithe that never lifts.
+- Feedback that fails to send now queues and can be resent with `r` from the feedback wizard; a successful send also delivers anything still queued.
+- The Contracts tab tracks your lifetime contract record.
+
+### Changed
+- Contracts pay out the moment you complete them, plus a small bonus for finishing all three in a run.
+- Contract offers lean toward how you actually play, and scale with Ascension.
+- Heirloom names show their most recent owner with a generation marker; the examine card keeps the full chain.
+- Food prices now differ by item — an apple costs less than elven waybread. Sell prices unchanged.
+- The feedback wizard redacts logs before sending and caps attachments at 4 MiB.
+- The run summary fits short terminals by trimming optional sections.
+- Worlds generate differently from seeds in this version.
+- Text overrides: boss dialogue keys are now `boss.<slug>.dialogue` (was `boss.<floor>.dialogue`) — update override files.
+
+### Fixed
+- Traps you place now damage enemies.
+- The poison immunity perk now actually prevents poison.
+- Dropping an item no longer closes the drop picker unless the turn hurt you.
+- Near-deaths from enemy abilities and explosions now count toward the Survivor achievement; older saves catch up as the counter ramps.
+- Bag and drop pickers scroll on short terminals instead of overflowing, and the ending screen reflows to stay on screen.
+- A merchant row you've selected but can't afford is now readable.
+- Several screens no longer show broken characters or misaligned text with long or accented names (sell list, examine card, forge, codex, sidebar contracts, Worlds screen).
+
 ## [v0.8.0] - 2026-07-16
 
 ### Added
