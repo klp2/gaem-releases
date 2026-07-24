@@ -5,6 +5,38 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.11.0] - 2026-07-24
+
+### Added
+- **Consumables now stack in a dedicated pouch** shown beside your bag, with cursor navigation across both. Merchants sell consumables straight into it and you can sell from its stacks.
+- **Quick-quaff** — `q` drinks the best health potion you have with the least amount of overheal.
+- **Class mastery expanded** — there's more to discover in the codex for veterans of each class.
+- **Essence updates** — class masteries require essence to purchase once unlocked. **In an existing save, you will need to purchase anything already unlocked before it applies again.** There are new things to spend your essence on, and essence earnings and costs have been retuned.
+- **Gold changes** — gold earnings have been retuned, prices have been retuned, and there are new things to discover that will help you empty your purse.
+- **Potions** — health and mana potions have been revamped, with stronger late-game heals priced to match, and the merchant's 'randomly stronger potion' slot has been removed.
+- Traps you place now stop a charging enemy in its tracks, and spring when an enemy teleports onto them.
+- The character sheet shows live counts of your passive effects firing this run, and identifies heirloom passives.
+- A proc-glyph overlay flags passive effects the turn they fire — toggle it in Settings.
+- The run summary gains a Build Report: what your perks, runes, and passives actually did all run.
+- The death screen and run summary now name what killed you.
+- The run summary names your runes — sigils, names, or both, via a new setting.
+- Settings has a language picker (also settable via `GAEM_LOCALE`).
+- You can back up a World from the Worlds screen. Old backups aren't pruned automatically. The game keeps a damaged save rather than erasing it and can usually rebuild your progress from your logs, but a backup is still a good idea. Once created, the game won't touch the backup again.
+
+### Changed
+- Worlds generate differently from seeds in this version.
+
+### Fixed
+- The Frail mutation's −25% max HP penalty now actually applies — it was wiped at run start, so Frail runs were collecting bonus essence at no cost.
+- The Vitality upgrade and class-mastery HP/MP bonuses now actually apply — they were also wiped at run start, since the beginning.
+- Gold spending was counted twice at merchants, so the Big Spender achievement fired at about half its real target. It counts once now, and descent taxes and forge fees now count as spending too; already-inflated lifetime counters keep their value.
+- The achievements codex keeps an achievement's goal text after you unlock it.
+- The drop-confirmation box now fits narrow terminals.
+- Weapon effects are tied to the item itself, so renamed items (locale overrides) keep their procs.
+- Ring of Wisdom and Ring of Insight had their stat bonuses swapped — Wisdom now grants WIS and Insight grants INT. A ring already in your bag keeps its old bonus until it's replaced.
+- `gaem recover-meta` now rebuilds far more of your progress from recent logs — essence and shard balances, mutations, triunes seen, nemesis kills, and floor counters — where it previously reset them to zero.
+- The merchant buy screen no longer clips a bought-back heirloom's badge and price, and now fits narrow terminals.
+
 ## [v0.10.0] - 2026-07-19
 
 ### Added
