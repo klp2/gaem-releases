@@ -5,6 +5,27 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.12.0] - 2026-07-26
+
+### Added
+- **Two new backgrounds.** The Forager works the ground as they walk it. The MAHA member eats what they kill, and pays for it elsewhere.
+- **A new patron** keeps a shrine, with a boon for the hungry and a toll for the wealthy.
+- **Oaths are now something you buy.** Contract slots and a once-per-run oath reroll join the permanent upgrades. **Contracts are no longer offered for free — in an existing save you will need to buy your first slot before any run offers an oath again.**
+- **More at the top of the mastery ladder** — the last five rungs carry class kits, quirks, grave legacies, shrine perks, and a pinnacle for each class.
+- **Merchants offer services** now, including a paid reroll of their stock.
+- **A damage tally** in the message log — press Tab to see what has actually been hurting you.
+- Enemy pathfinding updated.
+
+### Changed
+- **Some things that were free now take a turn** — equipping and unequipping, studying an item you already own, and doing business with merchants, forges, and shrines. Enemies act while you do. Refusing or cancelling still costs nothing.
+- Worlds generate differently from seeds in this version.
+- Long runs are now shared in truncated form instead of being dropped for being too large.
+
+### Fixed
+- **The character sheet scrolls.** Everything past 32 rows was being dropped silently, so Pacts — the only place to read what a pact does to your resistances — disappeared once you had four perks, which is an ordinary level-12 build.
+- **Spike-trap damage now counts.** It was never added to your run's total, so "Damage Endured" undercounted every trap you stepped on, and a trap that left you at a sliver of health never counted toward Survivor.
+- A turn spent behind an open bag or item card no longer hides what happened — the overlay closes if the turn drew blood.
+
 ## [v0.11.0] - 2026-07-24
 
 ### Added
