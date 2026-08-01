@@ -7,17 +7,13 @@ die() {
 	exit 1
 }
 
-[[ $# -ge 1 ]] || die "usage: announcement-state.sh read|cas ..."
-command=$1
-shift
-
-case "$command" in
-read)
-	[[ $# -eq 5 ]] || die "usage: announcement-state.sh read <repo> <branch> <path> <head-out> <state-out>"
-	repo=$1 branch=$2 path=$3 head_out=$4 state_out=$5
+read_state() {
+	local repo=$1 branch=$2 path=$3 head_out=$4 state_out=$5
+	local owner name ref_response head expression response
 	owner=${repo%%/*}
 	name=${repo#*/}
-	[[ -n "$owner" && -n "$name" && "$owner/$name" == "$repo" ]] || die "repository must be owner/name"
+	[[ -n "$owner" && -n "$name" && "$owner/$name" == "$repo" ]] ||
+		die "repository must be owner/name"
 	ref_response=$(gh api -H 'Cache-Control: no-cache' \
 		"repos/$repo/git/ref/heads/$branch") ||
 		die "cannot read announcement state branch"
@@ -36,6 +32,27 @@ read)
 	# while state transitions compare the exact canonical JSON bytes.
 	jq -rj '.data.repository.object.text // ""' <<<"$response" >"$state_out" ||
 		die "announcement state file response is malformed"
+}
+
+[[ $# -ge 1 ]] || die "usage: announcement-state.sh read|cas ..."
+command=$1
+shift
+
+case "$command" in
+read)
+	[[ $# -eq 5 ]] || die "usage: announcement-state.sh read <repo> <branch> <path> <head-out> <state-out>"
+	read_state "$@"
+	;;
+read-until-head)
+	[[ $# -eq 6 ]] || die "usage: announcement-state.sh read-until-head <repo> <branch> <path> <expected-head> <head-out> <state-out>"
+	repo=$1 branch=$2 path=$3 expected_head=$4 head_out=$5 state_out=$6
+	[[ "$expected_head" =~ ^[0-9a-f]{40}$ ]] || die "expected head is malformed"
+	for try in 1 2 3 4 5 6 7 8 9 10; do
+		read_state "$repo" "$branch" "$path" "$head_out" "$state_out"
+		[[ "$(cat "$head_out")" == "$expected_head" ]] && exit 0
+		[[ "$try" == 10 ]] || sleep 1
+	done
+	die "announcement state branch did not converge to the expected head"
 	;;
 cas)
 	[[ $# -eq 7 ]] || die "usage: announcement-state.sh cas <repo> <branch> <path> <expected-head> <state-file> <headline> <commit-out>"
