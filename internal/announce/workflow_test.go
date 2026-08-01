@@ -16,13 +16,17 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 	for _, want := range []string{
 		"types: [published]",
 		"contents: read",
-		"contents: write # release-body idempotency state only",
+		"contents: write # expected-head commits on announcement-state only",
+		"group: discord-announcement-state",
 		"cancel-in-progress: false",
 		"DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}",
 		"1525952505593462995",
 		"go run ./cmd/announce plan",
+		"go run ./cmd/announce state-plan",
 		"go run ./cmd/announce reserve",
 		"go run ./cmd/announce complete",
+		"announcements/v1/$RELEASE_ID.json",
+		"scripts/announcement-state.sh cas",
 		"allowed_mentions:{parse:[]}",
 		"?wait=true",
 		"/messages/$message_id",
@@ -40,26 +44,52 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 		"RUNLOG_WEBHOOK",
 		"pull-requests: write",
 		"issues: write",
+		"--method PATCH",
+		"reserved-body.txt",
 	} {
 		if strings.Contains(w, forbidden) {
 			t.Errorf("workflow exposes secret or excess authority through %q", forbidden)
 		}
 	}
+	inspect := strings.Index(w, "name: Inspect external idempotency state")
 	preflight := strings.Index(w, "name: Verify announcements webhook channel")
 	reserve := strings.Index(w, "name: Reserve this send attempt")
 	post := strings.Index(w, "name: Send and read back the Discord message")
 	complete := strings.Index(w, "name: Record the Discord message id")
-	if preflight < 0 || reserve <= preflight || post <= reserve || complete <= post {
-		t.Errorf("workflow order does not enforce preflight → reserve → send/readback → complete")
+	if inspect < 0 || preflight <= inspect || reserve <= preflight || post <= reserve || complete <= post {
+		t.Errorf("workflow order does not enforce state inspect → preflight → CAS reserve → send/readback → CAS complete")
 	}
 	if strings.Count(w, "go run ./cmd/announce plan") != 2 {
-		t.Error("workflow does not revalidate the full release immediately before reservation")
+		t.Error("workflow does not revalidate the full release immediately before send")
 	}
-	if strings.Count(w, "pre-reserve-plan.json") != 2 {
-		t.Error("fresh plan output is not the file compared with the original plan")
+	if strings.Count(w, "pre-send-plan.json") != 2 {
+		t.Error("fresh pre-send plan output is not compared with the original plan")
 	}
-	if !strings.Contains(w, `cmp --silent "$RUNNER_TEMP/reserved-body.txt"`) {
-		t.Error("workflow does not bind completion to the exact reserved release body")
+	if strings.Count(w, `cmp --silent "$reserved" "$RUNNER_TEMP/state.json"`) < 2 {
+		t.Error("workflow does not bind send and ambiguous CAS recovery to the exact reserved state")
+	}
+}
+
+func TestAnnouncementStateUsesExpectedHeadCAS(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("..", "..", "scripts", "announcement-state.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(script)
+	for _, want := range []string{
+		"createCommitOnBranch",
+		"expectedHeadOid:$head",
+		`branchName:$branch`,
+		`branch="refs/heads/$branch"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("CAS helper missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"--force", "PATCH", "DISCORD_ANNOUNCE_WEBHOOK"} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("CAS helper contains forbidden authority %q", forbidden)
+		}
 	}
 }
 

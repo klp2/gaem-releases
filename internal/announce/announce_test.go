@@ -67,13 +67,51 @@ func TestBuildPlanAnnouncesStrictStableAndRC(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			message := messageFixture(tc.tag, tc.rc, "One.", "Two.", "Three.")
-			r := releaseFixture(tc.tag, tc.prerelease, "pending", tc.source, message)
+			r := releaseFixture(tc.tag, tc.prerelease, "external", tc.source, message)
 			plan, err := planFor(t, r)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if plan.Action != ActionAnnounce || plan.Message != message || plan.Body != r.Body {
 				t.Fatalf("plan = %#v", plan)
+			}
+		})
+	}
+}
+
+func TestValidateDraftUsesConsumerContract(t *testing.T) {
+	tag := "v1.3.0-rc.4"
+	message := messageFixture(tag, true, "One.", "Two.", "Three.")
+	release := releaseFixture(tag, true, "external", SourceRC, message)
+	release.Draft = true
+	_, releaseJSON := eventAndLiveJSON(t, release)
+	if err := ValidateDraft(releaseJSON); err != nil {
+		t.Fatalf("valid draft failed: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		edit func(*Release)
+		want string
+	}{
+		{"published", func(r *Release) { r.Draft = false }, "not a draft"},
+		{"unknown tag", func(r *Release) { r.TagName = "v1.3.0-beta.1" }, "not a stable or rc"},
+		{"wrong source", func(r *Release) { r.Body = strings.Replace(r.Body, SourceRC, SourceStable, 1) }, "announcement source"},
+		{"body-local state", func(r *Release) { r.Body = strings.Replace(r.Body, StatePrefix+"external", StatePrefix+"pending", 1) }, "is not external"},
+		{"duplicate end marker", func(r *Release) { r.Body = strings.Replace(r.Body, "- One.", "- One. "+EndMarker, 1) }, "exactly one announcement marker pair"},
+		{"state text in message", func(r *Release) { r.Body = strings.Replace(r.Body, "- One.", "- One. "+StatePrefix+"pending", 1) }, "exactly one announcement state and source"},
+		{"short message", func(r *Release) {
+			r.Body = strings.Replace(r.Body, message, messageFixture(tag, true, "One.", "Two."), 1)
+		}, "expected 3–5"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mutated := release
+			tc.edit(&mutated)
+			_, gotJSON := eventAndLiveJSON(t, mutated)
+			err := ValidateDraft(gotJSON)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want containing %q", err, tc.want)
 			}
 		})
 	}
@@ -92,7 +130,7 @@ func TestBuildPlanSkipsDraftNightlyDiagnosticsAndUnknownTags(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := releaseFixture(tc.tag, strings.Contains(tc.tag, "-"), "pending", SourceRC, "unused")
+			r := releaseFixture(tc.tag, strings.Contains(tc.tag, "-"), "external", SourceRC, "unused")
 			r.Draft = tc.draft
 			plan, err := planFor(t, r)
 			if err != nil {
@@ -127,7 +165,7 @@ func TestBuildPlanFailsClosedOnMalformedRecognizedRelease(t *testing.T) {
 			if strings.HasPrefix(tc.name, "stable") {
 				tag, prerelease, source, rc = "v1.2.3", false, SourceStable, false
 			}
-			r := releaseFixture(tag, prerelease, "pending", source,
+			r := releaseFixture(tag, prerelease, "external", source,
 				messageFixture(tag, rc, "One.", "Two.", "Three."))
 			tc.edit(&r)
 			_, err := planFor(t, r)
@@ -139,7 +177,7 @@ func TestBuildPlanFailsClosedOnMalformedRecognizedRelease(t *testing.T) {
 }
 
 func TestBuildPlanRejectsStaleOrMalformedAPIData(t *testing.T) {
-	r := releaseFixture("v1.3.0-rc.1", true, "pending", SourceRC,
+	r := releaseFixture("v1.3.0-rc.1", true, "external", SourceRC,
 		messageFixture("v1.3.0-rc.1", true, "One.", "Two.", "Three."))
 	eventJSON, liveJSON := eventAndLiveJSON(t, r)
 	var live Release
@@ -172,7 +210,7 @@ func TestMessageValidation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := releaseFixture(tag, true, "pending", SourceRC, tc.message)
+			r := releaseFixture(tag, true, "external", SourceRC, tc.message)
 			_, err := planFor(t, r)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("err = %v, want containing %q", err, tc.want)
@@ -181,100 +219,127 @@ func TestMessageValidation(t *testing.T) {
 	}
 
 	unicodeMessage := strings.Replace(valid, "One.", strings.Repeat("é", 1_000), 1)
-	if _, err := planFor(t, releaseFixture(tag, true, "pending", SourceRC, unicodeMessage)); err != nil {
+	if _, err := planFor(t, releaseFixture(tag, true, "external", SourceRC, unicodeMessage)); err != nil {
 		t.Fatalf("Unicode message below the rune cap failed: %v", err)
 	}
 }
 
 func TestStateMachinePreventsDuplicateSendOnRetry(t *testing.T) {
 	tag := "v1.3.0-rc.1"
-	r := releaseFixture(tag, true, "pending", SourceRC,
+	r := releaseFixture(tag, true, "external", SourceRC,
 		messageFixture(tag, true, "One.", "Two.", "Three."))
-	reserved, err := Reserve(r.Body, "123:1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	r.Body = reserved
 	plan, err := planFor(t, r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Action != ActionSkip || !strings.Contains(plan.Reason, "ambiguous") {
-		t.Fatalf("reserved retry plan = %#v", plan)
+	reserved, err := ReserveState(plan, nil, "123:1")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := Reserve(reserved, "123:2"); err == nil {
+	reservedJSON, _ := json.Marshal(reserved)
+	decision, err := InspectState(plan, reservedJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Action != ActionSkip || !strings.Contains(decision.Reason, "ambiguous") {
+		t.Fatalf("reserved retry decision = %#v", decision)
+	}
+	if _, err := ReserveState(plan, reservedJSON, "123:2"); err == nil {
 		t.Fatal("second reservation survived an existing sending state")
 	}
-	if !strings.Contains(reserved, "sending:123:1:"+messageDigest(messageFixture(tag, true, "One.", "Two.", "Three."))) {
-		t.Fatalf("reserved body does not bind its message digest:\n%s", reserved)
+	if reserved.MessageSHA256 != digest(plan.Message) || reserved.BodySHA256 != digest(plan.Body) {
+		t.Fatalf("reserved state does not bind its payload: %#v", reserved)
 	}
 
-	completed, err := Complete(reserved, "123:1", "1531120393325117462")
+	completed, err := CompleteState(plan, reservedJSON, "123:1", "1531120393325117462")
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.Body = completed
-	plan, err = planFor(t, r)
+	completedJSON, _ := json.Marshal(completed)
+	decision, err = InspectState(plan, completedJSON)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Action != ActionSkip || !strings.Contains(plan.Reason, "already sent") {
-		t.Fatalf("completed retry plan = %#v", plan)
+	if decision.Action != ActionSkip || !strings.Contains(decision.Reason, "already sent") {
+		t.Fatalf("completed retry decision = %#v", decision)
 	}
-	if !strings.Contains(completed, "sent:1531120393325117462") ||
-		strings.Contains(completed, "sending:123:1") {
-		t.Fatalf("completed body has wrong state:\n%s", completed)
+	if completed.State != "sent" || completed.MessageID != "1531120393325117462" || completed.Generation != 2 {
+		t.Fatalf("completed external state is wrong: %#v", completed)
 	}
 }
 
 func TestReservedStateRejectsMessageMutationAndSupportsApprovedReset(t *testing.T) {
 	tag := "v1.3.0-rc.1"
-	r := releaseFixture(tag, true, "pending", SourceRC,
+	r := releaseFixture(tag, true, "external", SourceRC,
 		messageFixture(tag, true, "One.", "Two.", "Three."))
-	reserved, err := Reserve(r.Body, "123:1")
+	plan, err := planFor(t, r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mutated := strings.Replace(reserved, "- One.", "- Changed after reservation.", 1)
-	r.Body = mutated
-	if _, err := planFor(t, r); err == nil || !strings.Contains(err.Error(), "does not bind") {
-		t.Fatalf("mutated reserved message survived planning: %v", err)
+	reserved, err := ReserveState(plan, nil, "123:1")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := Complete(mutated, "123:1", "999"); err == nil || !strings.Contains(err.Error(), "does not match") {
+	reservedJSON, _ := json.Marshal(reserved)
+	bodyMutatedPlan := plan
+	bodyMutatedPlan.Body = strings.Replace(plan.Body, "source-sha: 0123", "source-sha: 9999", 1)
+	if _, err := InspectState(bodyMutatedPlan, reservedJSON); err == nil || !strings.Contains(err.Error(), "does not bind") {
+		t.Fatalf("mutated release body survived state planning: %v", err)
+	}
+	messageMutatedPlan := plan
+	messageMutatedPlan.Message = strings.Replace(plan.Message, "- One.", "- Changed after reservation.", 1)
+	if _, err := InspectState(messageMutatedPlan, reservedJSON); err == nil || !strings.Contains(err.Error(), "does not bind") {
+		t.Fatalf("mutated message survived state planning: %v", err)
+	}
+	if _, err := CompleteState(messageMutatedPlan, reservedJSON, "123:1", "999"); err == nil || !strings.Contains(err.Error(), "does not bind") {
 		t.Fatalf("mutated reserved message survived completion: %v", err)
 	}
-	if _, err := Reset(mutated, "123:1"); err == nil || !strings.Contains(err.Error(), "does not match") {
+	if _, err := ResetState(messageMutatedPlan, reservedJSON, "123:1"); err == nil || !strings.Contains(err.Error(), "does not bind") {
 		t.Fatalf("mutated reserved message survived reset: %v", err)
 	}
-	if _, err := Reset(reserved, "123:2"); err == nil {
+	if _, err := ResetState(plan, reservedJSON, "123:2"); err == nil {
 		t.Fatal("reset accepted a different run attempt")
 	}
-	pending, err := Reset(reserved, "123:1")
+	pending, err := ResetState(plan, reservedJSON, "123:1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(pending, StatePrefix+"pending") || strings.Contains(pending, "sending:123:1") {
-		t.Fatalf("approved reset produced wrong state:\n%s", pending)
+	if pending.State != "pending" || pending.Attempt != "" || pending.Generation != 2 {
+		t.Fatalf("approved reset produced wrong state: %#v", pending)
+	}
+	pendingJSON, _ := json.Marshal(pending)
+	retry, err := ReserveState(plan, pendingJSON, "124:1")
+	if err != nil || retry.State != "sending" || retry.Generation != 3 {
+		t.Fatalf("approved retry reservation = %#v, %v", retry, err)
 	}
 }
 
 func TestStateTransitionsRejectMalformedIdentifiersAndWrongAttempts(t *testing.T) {
-	r := releaseFixture("v1.3.0-rc.1", true, "pending", SourceRC,
+	r := releaseFixture("v1.3.0-rc.1", true, "external", SourceRC,
 		messageFixture("v1.3.0-rc.1", true, "One.", "Two.", "Three."))
-	for _, attempt := range []string{"", "0:1", "1:0", "one:1", "1"} {
-		if _, err := Reserve(r.Body, attempt); err == nil {
-			t.Errorf("Reserve accepted attempt %q", attempt)
-		}
-	}
-	reserved, err := Reserve(r.Body, "12:3")
+	plan, err := planFor(t, r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Complete(reserved, "12:4", "123"); err == nil {
+	for _, attempt := range []string{"", "0:1", "1:0", "one:1", "1"} {
+		if _, err := ReserveState(plan, nil, attempt); err == nil {
+			t.Errorf("Reserve accepted attempt %q", attempt)
+		}
+	}
+	reserved, err := ReserveState(plan, nil, "12:3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservedJSON, _ := json.Marshal(reserved)
+	if _, err := CompleteState(plan, reservedJSON, "12:4", "123"); err == nil {
 		t.Fatal("Complete accepted a different run attempt")
 	}
-	if _, err := Complete(reserved, "12:3", "not-a-snowflake"); err == nil {
+	if _, err := CompleteState(plan, reservedJSON, "12:3", "not-a-snowflake"); err == nil {
 		t.Fatal("Complete accepted a malformed Discord message id")
+	}
+	withUnknown := strings.TrimSuffix(string(reservedJSON), "}") + `,"unexpected":true}`
+	if _, err := InspectState(plan, []byte(withUnknown)); err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("state with unknown field survived: %v", err)
 	}
 }
 
@@ -282,7 +347,7 @@ func TestEnvelopeParserDoesNotConfuseMessageContentForContainer(t *testing.T) {
 	tag := "v1.3.0-rc.1"
 	message := messageFixture(tag, true, "One.", "Two.", "Three.") +
 		fmt.Sprintf("\n%s fake", StatePrefix)
-	r := releaseFixture(tag, true, "pending", SourceRC, message)
+	r := releaseFixture(tag, true, "external", SourceRC, message)
 	_, err := planFor(t, r)
 	if err == nil || !strings.Contains(err.Error(), "exactly one announcement state") {
 		t.Fatalf("container-confusing message survived: %v", err)
@@ -292,7 +357,7 @@ func TestEnvelopeParserDoesNotConfuseMessageContentForContainer(t *testing.T) {
 func TestEnvelopeRejectsOuterMessageWhitespace(t *testing.T) {
 	tag := "v1.2.3"
 	message := messageFixture(tag, false, "One.", "Two.", "Three.")
-	r := releaseFixture(tag, false, "pending", SourceStable, message)
+	r := releaseFixture(tag, false, "external", SourceStable, message)
 	if _, err := parseEnvelope(r.Body); err != nil {
 		t.Fatalf("positive control failed to parse: %v", err)
 	}
