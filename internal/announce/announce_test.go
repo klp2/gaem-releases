@@ -75,6 +75,53 @@ func TestBuildPlanAnnouncesStrictStableAndRC(t *testing.T) {
 			if plan.Action != ActionAnnounce || plan.Message != message || plan.Body != r.Body {
 				t.Fatalf("plan = %#v", plan)
 			}
+			if plan.DeliveryID != r.ID || plan.Subject != r.TagName {
+				t.Fatalf("release identity was not preserved as delivery identity: %#v", plan)
+			}
+		})
+	}
+}
+
+func TestBuildProbePlanUsesFixedApprovedMessage(t *testing.T) {
+	approved := digest(ProbeMessage)
+	plan, err := BuildProbePlan(987654321, approved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Action != ActionAnnounce || plan.DeliveryID != 987654321 ||
+		plan.Subject != ProbeSubject || plan.Source != SourceProbe || plan.Body != ProbeBody ||
+		plan.URL != LatestReleaseURL || plan.Message != ProbeMessage {
+		t.Fatalf("probe plan = %#v", plan)
+	}
+	if err := validateProbeMessage(plan.Message); err != nil {
+		t.Fatalf("fixed probe message failed its own contract: %v", err)
+	}
+	if _, err := BuildProbePlan(0, approved); err == nil {
+		t.Fatal("non-positive probe run id survived")
+	}
+	for _, badDigest := range []string{"", strings.ToUpper(approved), strings.Repeat("0", 64)} {
+		if _, err := BuildProbePlan(987654321, badDigest); err == nil {
+			t.Fatalf("unapproved probe digest %q survived", badDigest)
+		}
+	}
+
+	mutations := []struct {
+		name, message, want string
+	}{
+		{"headline", strings.Replace(ProbeMessage, "rollout probe", "test", 1), "headline"},
+		{"two bullets", strings.Replace(ProbeMessage, "\n- It confirms exact message readback and duplicate prevention.", "", 1), "expected 3"},
+		{"empty bullet", strings.Replace(ProbeMessage, "- It confirms exact message", "- \nIt confirms exact message", 1), "empty bullet"},
+		{"link", strings.Replace(ProbeMessage, "<"+LatestReleaseURL+">", LatestReleaseURL, 1), "latest-release link"},
+		{"fence", ProbeMessage + "\n```", "forbidden text"},
+		{"caveat", strings.TrimSuffix(ProbeMessage, "Probe only — no player action needed."), "caveat"},
+		{"length", ProbeMessage + strings.Repeat("é", 2_000), "fewer than 2,000"},
+	}
+	for _, tc := range mutations {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateProbeMessage(tc.message)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want containing %q", err, tc.want)
+			}
 		})
 	}
 }
@@ -241,7 +288,7 @@ func TestStateMachinePreventsDuplicateSendOnRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.Action != ActionSkip || !strings.Contains(decision.Reason, "ambiguous") {
+	if decision.Action != ActionFail || !strings.Contains(decision.Reason, "ambiguous") {
 		t.Fatalf("reserved retry decision = %#v", decision)
 	}
 	if _, err := ReserveState(plan, reservedJSON, "123:2"); err == nil {
@@ -266,6 +313,46 @@ func TestStateMachinePreventsDuplicateSendOnRetry(t *testing.T) {
 	if completed.State != "sent" || completed.MessageID != "1531120393325117462" || completed.Generation != 2 {
 		t.Fatalf("completed external state is wrong: %#v", completed)
 	}
+}
+
+func TestProbeStateRejectsASecondDispatch(t *testing.T) {
+	approved := digest(ProbeMessage)
+	first, err := BuildProbePlan(1001, approved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reserved, err := ReserveState(first, nil, "1001:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := CompleteState(first, mustJSON(t, reserved), "1001:1", "1531120393325117462")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := InspectState(first, mustJSON(t, completed))
+	if err != nil || decision.Action != ActionSkip || !strings.Contains(decision.Reason, "already sent") {
+		t.Fatalf("same-run retry decision = %#v, %v", decision, err)
+	}
+	second, err := BuildProbePlan(1002, approved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InspectState(second, mustJSON(t, completed)); err == nil || !strings.Contains(err.Error(), "does not bind") {
+		t.Fatalf("second dispatch survived fixed probe state: %v", err)
+	}
+	stateJSON := string(mustJSON(t, completed))
+	if !strings.Contains(stateJSON, `"delivery_id":1001`) || strings.Contains(stateJSON, `"release_id"`) {
+		t.Fatalf("probe state does not use generic delivery identity: %s", stateJSON)
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 func TestReservedStateRejectsMessageMutationAndSupportsApprovedReset(t *testing.T) {

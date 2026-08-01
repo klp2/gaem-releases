@@ -13,15 +13,29 @@ import (
 )
 
 const (
-	Repository     = "klp2/gaem-releases"
-	StartMarker    = "<!-- gaem-discord-announcement:v1:start -->"
-	EndMarker      = "<!-- gaem-discord-announcement:v1:end -->"
-	StatePrefix    = "discord-announcement-state: "
-	SourcePrefix   = "discord-announcement-source: "
-	SourceRC       = "changelog-nightly"
-	SourceStable   = "changelog-public-approved"
-	ActionAnnounce = "announce"
-	ActionSkip     = "skip"
+	Repository       = "klp2/gaem-releases"
+	LatestReleaseURL = "https://github.com/klp2/gaem-releases/releases/latest"
+	StartMarker      = "<!-- gaem-discord-announcement:v1:start -->"
+	EndMarker        = "<!-- gaem-discord-announcement:v1:end -->"
+	StatePrefix      = "discord-announcement-state: "
+	SourcePrefix     = "discord-announcement-source: "
+	SourceRC         = "changelog-nightly"
+	SourceStable     = "changelog-public-approved"
+	SourceProbe      = "workflow-dispatch-probe"
+	ProbeSubject     = "discord-announcement-rollout-probe-v1"
+	ProbeBody        = "gaem-discord-announcement-rollout-probe:v1"
+	ActionAnnounce   = "announce"
+	ActionSkip       = "skip"
+	ActionFail       = "fail"
+
+	ProbeMessage = `## gaem announcement pipeline rollout probe
+Latest release: <https://github.com/klp2/gaem-releases/releases/latest>
+
+- This is a one-time delivery test; no new build was published.
+- It confirms the webhook targets #announcements and mention parsing is disabled.
+- It confirms exact message readback and duplicate prevention.
+
+Probe only — no player action needed.`
 )
 
 var (
@@ -52,21 +66,21 @@ type event struct {
 }
 
 type Plan struct {
-	Action    string `json:"action"`
-	Reason    string `json:"reason"`
-	ReleaseID int64  `json:"release_id"`
-	TagName   string `json:"tag_name"`
-	URL       string `json:"url"`
-	Source    string `json:"source,omitempty"`
-	Body      string `json:"body,omitempty"`
-	Message   string `json:"message,omitempty"`
+	Action     string `json:"action"`
+	Reason     string `json:"reason"`
+	DeliveryID int64  `json:"delivery_id"`
+	Subject    string `json:"subject"`
+	URL        string `json:"url"`
+	Source     string `json:"source,omitempty"`
+	Body       string `json:"body,omitempty"`
+	Message    string `json:"message,omitempty"`
 }
 
 type State struct {
 	Version       int    `json:"version"`
 	Generation    int    `json:"generation"`
-	ReleaseID     int64  `json:"release_id"`
-	TagName       string `json:"tag_name"`
+	DeliveryID    int64  `json:"delivery_id"`
+	Subject       string `json:"subject"`
 	Source        string `json:"source"`
 	BodySHA256    string `json:"body_sha256"`
 	MessageSHA256 string `json:"message_sha256"`
@@ -132,7 +146,7 @@ func BuildPlan(eventJSON, liveJSON []byte) (Plan, error) {
 		e.Release.HTMLURL != live.HTMLURL {
 		return Plan{}, errors.New("release event disagrees with the fresh API read")
 	}
-	base := Plan{ReleaseID: live.ID, TagName: live.TagName, URL: live.HTMLURL}
+	base := Plan{DeliveryID: live.ID, Subject: live.TagName, URL: live.HTMLURL}
 	if live.Draft {
 		base.Action, base.Reason = ActionSkip, "draft release"
 		return base, nil
@@ -166,6 +180,39 @@ func BuildPlan(eventJSON, liveJSON []byte) (Plan, error) {
 	base.Source, base.Body, base.Message = env.source, live.Body, env.message
 	base.Action, base.Reason = ActionAnnounce, "validated announcement with external CAS state"
 	return base, nil
+}
+
+// BuildProbePlan creates the single fixed rollout probe. The Actions run ID is
+// a delivery identifier, not a release ID; a fixed state path makes a later
+// dispatch with a different run ID fail closed instead of posting twice.
+func BuildProbePlan(runID int64, approvedMessageSHA256 string) (Plan, error) {
+	if runID <= 0 {
+		return Plan{}, errors.New("probe run id must be positive")
+	}
+	if err := validateProbeMessage(ProbeMessage); err != nil {
+		return Plan{}, fmt.Errorf("invalid built-in probe message: %w", err)
+	}
+	if !digestValue.MatchString(approvedMessageSHA256) {
+		return Plan{}, errors.New("approved probe digest must be 64 lowercase hexadecimal characters")
+	}
+	if digest(ProbeMessage) != approvedMessageSHA256 {
+		return Plan{}, errors.New("fixed probe message does not match the chat-approved digest")
+	}
+	return Plan{
+		Action:     ActionAnnounce,
+		Reason:     "fixed rollout probe approved out of band",
+		DeliveryID: runID,
+		Subject:    ProbeSubject,
+		URL:        LatestReleaseURL,
+		Source:     SourceProbe,
+		Body:       ProbeBody,
+		Message:    ProbeMessage,
+	}, nil
+}
+
+// ProbeMessageDigest is the exact approval token accepted by BuildProbePlan.
+func ProbeMessageDigest() string {
+	return digest(ProbeMessage)
 }
 
 func classifyRelease(release Release) (channel, expectedSource string, recognized bool, err error) {
@@ -223,7 +270,7 @@ func InspectState(plan Plan, stateJSON []byte) (StatePlan, error) {
 		if !attemptID.MatchString(state.Attempt) || state.MessageID != "" {
 			return StatePlan{}, errors.New("sending state is malformed")
 		}
-		return StatePlan{Action: ActionSkip, Reason: "prior send attempt is ambiguous; manual recovery required"}, nil
+		return StatePlan{Action: ActionFail, Reason: "prior send attempt is ambiguous; manual recovery required"}, nil
 	case "sent":
 		if !attemptID.MatchString(state.Attempt) || !messageID.MatchString(state.MessageID) {
 			return StatePlan{}, errors.New("sent state is malformed")
@@ -307,7 +354,7 @@ func decodeState(data []byte) (State, error) {
 		}
 		return State{}, fmt.Errorf("decode announcement state: %w", err)
 	}
-	if state.Version != 1 || state.Generation < 1 || state.ReleaseID <= 0 || state.TagName == "" ||
+	if state.Version != 1 || state.Generation < 1 || state.DeliveryID <= 0 || state.Subject == "" ||
 		state.Source == "" || !digestValue.MatchString(state.BodySHA256) ||
 		!digestValue.MatchString(state.MessageSHA256) {
 		return State{}, errors.New("announcement state metadata is malformed")
@@ -316,7 +363,7 @@ func decodeState(data []byte) (State, error) {
 }
 
 func validateAnnouncePlan(plan Plan) error {
-	if plan.Action != ActionAnnounce || plan.ReleaseID <= 0 || plan.TagName == "" ||
+	if plan.Action != ActionAnnounce || plan.DeliveryID <= 0 || plan.Subject == "" ||
 		plan.Source == "" || plan.Body == "" || plan.Message == "" {
 		return errors.New("announcement plan is incomplete or not announceable")
 	}
@@ -327,15 +374,15 @@ func stateMatchesPlan(state State, plan Plan) error {
 	if err := validateAnnouncePlan(plan); err != nil {
 		return err
 	}
-	if state.ReleaseID != plan.ReleaseID || state.TagName != plan.TagName || state.Source != plan.Source ||
+	if state.DeliveryID != plan.DeliveryID || state.Subject != plan.Subject || state.Source != plan.Source ||
 		state.BodySHA256 != digest(plan.Body) || state.MessageSHA256 != digest(plan.Message) {
-		return errors.New("external announcement state does not bind the current release and message")
+		return errors.New("external announcement state does not bind the current delivery and message")
 	}
 	return nil
 }
 
 func newState(plan Plan, generation int, state, attempt, messageID string) State {
-	return State{Version: 1, Generation: generation, ReleaseID: plan.ReleaseID, TagName: plan.TagName,
+	return State{Version: 1, Generation: generation, DeliveryID: plan.DeliveryID, Subject: plan.Subject,
 		Source: plan.Source, BodySHA256: digest(plan.Body), MessageSHA256: digest(plan.Message),
 		State: state, Attempt: attempt, MessageID: messageID}
 }
@@ -424,6 +471,39 @@ func validateMessage(message, tag, releaseURL, channel string) error {
 	}
 	if !strings.HasSuffix(message, "Full notes on the release page.") {
 		return errors.New("announcement is missing the full-notes footer")
+	}
+	return nil
+}
+
+func validateProbeMessage(message string) error {
+	count := utf8.RuneCountInString(message)
+	if count >= 2000 {
+		return fmt.Errorf("probe is %d characters; must be fewer than 2,000", count)
+	}
+	if strings.Contains(message, "```") || strings.Contains(message, "\r") ||
+		strings.Contains(message, StartMarker) || strings.Contains(message, EndMarker) {
+		return errors.New("probe contains forbidden text")
+	}
+	if !strings.HasPrefix(message, "## gaem announcement pipeline rollout probe\n") {
+		return errors.New("probe headline is malformed")
+	}
+	bullets := 0
+	for _, line := range strings.Split(message, "\n") {
+		if strings.HasPrefix(line, "- ") {
+			if strings.TrimSpace(strings.TrimPrefix(line, "- ")) == "" {
+				return errors.New("probe contains an empty bullet")
+			}
+			bullets++
+		}
+	}
+	if bullets != 3 {
+		return fmt.Errorf("probe has %d bullets; expected 3", bullets)
+	}
+	if strings.Count(message, "<"+LatestReleaseURL+">") != 1 {
+		return errors.New("probe must carry exactly one latest-release link")
+	}
+	if !strings.HasSuffix(message, "Probe only — no player action needed.") {
+		return errors.New("probe is missing its player-facing caveat")
 	}
 	return nil
 }
