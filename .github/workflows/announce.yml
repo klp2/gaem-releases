@@ -1,0 +1,179 @@
+name: release announcement
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-announcement-${{ github.event.release.id }}
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # release-body idempotency state only
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Validate the fresh release and announcement
+        id: plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: |
+          set -euo pipefail
+          live="$RUNNER_TEMP/release.json"
+          plan="$RUNNER_TEMP/plan.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$live"
+          go run ./cmd/announce plan "$GITHUB_EVENT_PATH" "$live" "$plan"
+          action="$(jq -er .action "$plan")"
+          reason="$(jq -er .reason "$plan")"
+          {
+            echo "action=$action"
+            echo "reason=$reason"
+          } >>"$GITHUB_OUTPUT"
+          jq -rj '.body // ""' "$plan" >"$RUNNER_TEMP/release-body.txt"
+          jq -rj '.message // ""' "$plan" >"$RUNNER_TEMP/message.txt"
+
+      - name: Report a filtered release
+        if: steps.plan.outputs.action == 'skip'
+        env:
+          REASON: ${{ steps.plan.outputs.reason }}
+        run: echo "Announcement skipped — $REASON."
+
+      - name: Verify announcements webhook channel
+        if: steps.plan.outputs.action == 'announce'
+        env:
+          DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          [ -n "${DISCORD_ANNOUNCE_WEBHOOK:-}" ] || {
+            echo "FATAL: DISCORD_ANNOUNCE_WEBHOOK is not provisioned." >&2
+            exit 1
+          }
+          set +e
+          status="$(curl --silent --output "$RUNNER_TEMP/webhook.json" \
+            --write-out '%{http_code}' "$DISCORD_ANNOUNCE_WEBHOOK" \
+            2>"$RUNNER_TEMP/webhook.err")"
+          curl_rc=$?
+          set -e
+          if [ "$curl_rc" -ne 0 ] || [ "$status" != 200 ]; then
+            echo "FATAL: announcements webhook identity check failed (details suppressed)." >&2
+            exit 1
+          fi
+          jq -e '.channel_id == "1525952505593462995"' \
+            "$RUNNER_TEMP/webhook.json" >/dev/null || {
+            echo "FATAL: webhook does not target #announcements." >&2
+            exit 1
+          }
+
+      - name: Reserve this send attempt
+        if: steps.plan.outputs.action == 'announce'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          ATTEMPT: ${{ github.run_id }}:${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            >"$RUNNER_TEMP/pre-reserve-release.json"
+          jq -rj .body "$RUNNER_TEMP/pre-reserve-release.json" \
+            >"$RUNNER_TEMP/pre-reserve-body.txt"
+          cmp --silent "$RUNNER_TEMP/release-body.txt" \
+            "$RUNNER_TEMP/pre-reserve-body.txt" || {
+            echo "FATAL: release body changed after validation; refusing to reserve." >&2
+            exit 1
+          }
+          reserved="$RUNNER_TEMP/reserved-body.txt"
+          go run ./cmd/announce reserve \
+            "$RUNNER_TEMP/pre-reserve-body.txt" "$ATTEMPT" "$reserved"
+          jq -n --rawfile body "$reserved" '{body:$body}' >"$RUNNER_TEMP/patch.json"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --input "$RUNNER_TEMP/patch.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            >"$RUNNER_TEMP/reserved-release.json"
+          jq -rj .body "$RUNNER_TEMP/reserved-release.json" >"$RUNNER_TEMP/observed-body.txt"
+          cmp --silent "$reserved" "$RUNNER_TEMP/observed-body.txt" || {
+            echo "FATAL: release-body reservation readback disagrees with the PATCH." >&2
+            exit 1
+          }
+
+      - name: Send and read back the Discord message
+        if: steps.plan.outputs.action == 'announce'
+        id: discord
+        env:
+          DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          message="$RUNNER_TEMP/message.txt"
+          jq -n --rawfile content "$message" '{content:$content}' >"$RUNNER_TEMP/payload.json"
+          set +e
+          status="$(curl --silent --output "$RUNNER_TEMP/discord-response.json" \
+            --write-out '%{http_code}' -H 'Content-Type: application/json' \
+            --request POST --data-binary @"$RUNNER_TEMP/payload.json" \
+            "${DISCORD_ANNOUNCE_WEBHOOK}?wait=true" 2>"$RUNNER_TEMP/discord-send.err")"
+          curl_rc=$?
+          set -e
+          if [ "$curl_rc" -ne 0 ] || [ "$status" != 200 ]; then
+            echo "FATAL: Discord announcement send failed (details suppressed; retry is locked)." >&2
+            exit 1
+          fi
+          message_id="$(jq -er '.id | select(test("^[1-9][0-9]*$"))' \
+            "$RUNNER_TEMP/discord-response.json")"
+          set +e
+          status="$(curl --silent --output "$RUNNER_TEMP/discord-readback.json" \
+            --write-out '%{http_code}' \
+            "${DISCORD_ANNOUNCE_WEBHOOK}/messages/$message_id" \
+            2>"$RUNNER_TEMP/discord-readback.err")"
+          curl_rc=$?
+          set -e
+          if [ "$curl_rc" -ne 0 ] || [ "$status" != 200 ]; then
+            echo "FATAL: Discord announcement readback failed (details suppressed; retry is locked)." >&2
+            exit 1
+          fi
+          jq -e --rawfile expected "$message" \
+            '.channel_id == "1525952505593462995" and .content == $expected' \
+            "$RUNNER_TEMP/discord-readback.json" >/dev/null || {
+            echo "FATAL: Discord readback content or channel disagrees with the approved payload." >&2
+            exit 1
+          }
+          if jq -r .content "$RUNNER_TEMP/discord-readback.json" | grep -Fq '```'; then
+            echo "FATAL: Discord readback contains a code fence." >&2
+            exit 1
+          fi
+          echo "message_id=$message_id" >>"$GITHUB_OUTPUT"
+
+      - name: Record the Discord message id
+        if: steps.plan.outputs.action == 'announce'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          ATTEMPT: ${{ github.run_id }}:${{ github.run_attempt }}
+          MESSAGE_ID: ${{ steps.discord.outputs.message_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            >"$RUNNER_TEMP/pre-complete-release.json"
+          jq -rj .body "$RUNNER_TEMP/pre-complete-release.json" \
+            >"$RUNNER_TEMP/pre-complete-body.txt"
+          complete="$RUNNER_TEMP/complete-body.txt"
+          go run ./cmd/announce complete "$RUNNER_TEMP/pre-complete-body.txt" \
+            "$ATTEMPT" "$MESSAGE_ID" "$complete"
+          jq -n --rawfile body "$complete" '{body:$body}' >"$RUNNER_TEMP/patch.json"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --input "$RUNNER_TEMP/patch.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            >"$RUNNER_TEMP/complete-release.json"
+          jq -rj .body "$RUNNER_TEMP/complete-release.json" >"$RUNNER_TEMP/observed-body.txt"
+          cmp --silent "$complete" "$RUNNER_TEMP/observed-body.txt" || {
+            echo "FATAL: completed announcement state failed readback." >&2
+            exit 1
+          }
