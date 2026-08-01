@@ -1,6 +1,7 @@
 package announce
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,11 +25,12 @@ const (
 )
 
 var (
-	stableTag  = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-	rcTag      = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$`)
-	nightlyTag = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-nightly\.[0-9]{8}$`)
-	attemptID  = regexp.MustCompile(`^[1-9][0-9]*:[1-9][0-9]*$`)
-	messageID  = regexp.MustCompile(`^[1-9][0-9]*$`)
+	stableTag    = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+	rcTag        = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$`)
+	nightlyTag   = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-nightly\.[0-9]{8}$`)
+	attemptID    = regexp.MustCompile(`^[1-9][0-9]*:[1-9][0-9]*$`)
+	sendingState = regexp.MustCompile(`^sending:([1-9][0-9]*:[1-9][0-9]*):([0-9a-f]{64})$`)
+	messageID    = regexp.MustCompile(`^[1-9][0-9]*$`)
 )
 
 type Release struct {
@@ -131,8 +133,12 @@ func BuildPlan(eventJSON, liveJSON []byte) (Plan, error) {
 	case env.state == "pending":
 		base.Action, base.Reason = ActionAnnounce, "validated pending announcement"
 	case strings.HasPrefix(env.state, "sending:"):
-		if !attemptID.MatchString(strings.TrimPrefix(env.state, "sending:")) {
+		parts := sendingState.FindStringSubmatch(env.state)
+		if parts == nil {
 			return Plan{}, fmt.Errorf("malformed sending state %q", env.state)
+		}
+		if got := messageDigest(env.message); got != parts[2] {
+			return Plan{}, fmt.Errorf("sending state digest %s does not bind the embedded message", parts[2])
 		}
 		base.Action, base.Reason = ActionSkip, "prior send attempt is ambiguous; manual recovery required"
 	case strings.HasPrefix(env.state, "sent:"):
@@ -157,7 +163,7 @@ func Reserve(body, attempt string) (string, error) {
 	if env.state != "pending" {
 		return "", fmt.Errorf("cannot reserve announcement in state %q", env.state)
 	}
-	return replaceState(body, "pending", "sending:"+attempt)
+	return replaceState(body, "pending", "sending:"+attempt+":"+messageDigest(env.message))
 }
 
 func Complete(body, attempt, discordMessageID string) (string, error) {
@@ -171,11 +177,32 @@ func Complete(body, attempt, discordMessageID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	want := "sending:" + attempt
-	if env.state != want {
-		return "", fmt.Errorf("cannot complete announcement in state %q; want %q", env.state, want)
+	parts := sendingState.FindStringSubmatch(env.state)
+	if parts == nil || parts[1] != attempt {
+		return "", fmt.Errorf("cannot complete announcement in state %q for attempt %q", env.state, attempt)
 	}
-	return replaceState(body, want, "sent:"+discordMessageID)
+	if got := messageDigest(env.message); got != parts[2] {
+		return "", fmt.Errorf("cannot complete: embedded message digest %s does not match reserved digest %s", got, parts[2])
+	}
+	return replaceState(body, env.state, "sent:"+discordMessageID)
+}
+
+func Reset(body, attempt string) (string, error) {
+	if !attemptID.MatchString(attempt) {
+		return "", fmt.Errorf("invalid attempt id %q", attempt)
+	}
+	env, err := parseEnvelope(body)
+	if err != nil {
+		return "", err
+	}
+	parts := sendingState.FindStringSubmatch(env.state)
+	if parts == nil || parts[1] != attempt {
+		return "", fmt.Errorf("cannot reset announcement in state %q for attempt %q", env.state, attempt)
+	}
+	if got := messageDigest(env.message); got != parts[2] {
+		return "", fmt.Errorf("cannot reset: embedded message digest %s does not match reserved digest %s", got, parts[2])
+	}
+	return replaceState(body, env.state, "pending")
 }
 
 func decodeOne(data []byte, dst any) error {
@@ -272,4 +299,8 @@ func replaceState(body, from, to string) (string, error) {
 		return "", fmt.Errorf("state line %q is not unique", oldLine)
 	}
 	return strings.Replace(body, oldLine, StatePrefix+to, 1), nil
+}
+
+func messageDigest(message string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(message)))
 }

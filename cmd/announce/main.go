@@ -17,7 +17,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: announce plan|reserve|complete ...")
+		return fmt.Errorf("usage: announce plan|reserve|complete|reset ...")
 	}
 	switch args[0] {
 	case "plan":
@@ -67,6 +67,19 @@ func run(args []string) error {
 			return err
 		}
 		return os.WriteFile(args[4], []byte(complete), 0o600)
+	case "reset":
+		if len(args) != 4 {
+			return fmt.Errorf("usage: announce reset <body.txt> <run:attempt> <pending.txt>")
+		}
+		body, err := os.ReadFile(args[1])
+		if err != nil {
+			return err
+		}
+		pending, err := announce.Reset(string(body), args[2])
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(args[3], []byte(pending), 0o600)
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}

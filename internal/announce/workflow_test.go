@@ -23,6 +23,7 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 		"go run ./cmd/announce plan",
 		"go run ./cmd/announce reserve",
 		"go run ./cmd/announce complete",
+		"allowed_mentions:{parse:[]}",
 		"?wait=true",
 		"/messages/$message_id",
 		"cmp --silent",
@@ -50,6 +51,15 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 	complete := strings.Index(w, "name: Record the Discord message id")
 	if preflight < 0 || reserve <= preflight || post <= reserve || complete <= post {
 		t.Errorf("workflow order does not enforce preflight → reserve → send/readback → complete")
+	}
+	if strings.Count(w, "go run ./cmd/announce plan") != 2 {
+		t.Error("workflow does not revalidate the full release immediately before reservation")
+	}
+	if strings.Count(w, "pre-reserve-plan.json") != 2 {
+		t.Error("fresh plan output is not the file compared with the original plan")
+	}
+	if !strings.Contains(w, `cmp --silent "$RUNNER_TEMP/reserved-body.txt"`) {
+		t.Error("workflow does not bind completion to the exact reserved release body")
 	}
 }
 

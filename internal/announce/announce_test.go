@@ -205,6 +205,9 @@ func TestStateMachinePreventsDuplicateSendOnRetry(t *testing.T) {
 	if _, err := Reserve(reserved, "123:2"); err == nil {
 		t.Fatal("second reservation survived an existing sending state")
 	}
+	if !strings.Contains(reserved, "sending:123:1:"+messageDigest(messageFixture(tag, true, "One.", "Two.", "Three."))) {
+		t.Fatalf("reserved body does not bind its message digest:\n%s", reserved)
+	}
 
 	completed, err := Complete(reserved, "123:1", "1531120393325117462")
 	if err != nil {
@@ -221,6 +224,37 @@ func TestStateMachinePreventsDuplicateSendOnRetry(t *testing.T) {
 	if !strings.Contains(completed, "sent:1531120393325117462") ||
 		strings.Contains(completed, "sending:123:1") {
 		t.Fatalf("completed body has wrong state:\n%s", completed)
+	}
+}
+
+func TestReservedStateRejectsMessageMutationAndSupportsApprovedReset(t *testing.T) {
+	tag := "v1.3.0-rc.1"
+	r := releaseFixture(tag, true, "pending", SourceRC,
+		messageFixture(tag, true, "One.", "Two.", "Three."))
+	reserved, err := Reserve(r.Body, "123:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutated := strings.Replace(reserved, "- One.", "- Changed after reservation.", 1)
+	r.Body = mutated
+	if _, err := planFor(t, r); err == nil || !strings.Contains(err.Error(), "does not bind") {
+		t.Fatalf("mutated reserved message survived planning: %v", err)
+	}
+	if _, err := Complete(mutated, "123:1", "999"); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("mutated reserved message survived completion: %v", err)
+	}
+	if _, err := Reset(mutated, "123:1"); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("mutated reserved message survived reset: %v", err)
+	}
+	if _, err := Reset(reserved, "123:2"); err == nil {
+		t.Fatal("reset accepted a different run attempt")
+	}
+	pending, err := Reset(reserved, "123:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(pending, StatePrefix+"pending") || strings.Contains(pending, "sending:123:1") {
+		t.Fatalf("approved reset produced wrong state:\n%s", pending)
 	}
 }
 
@@ -252,5 +286,19 @@ func TestEnvelopeParserDoesNotConfuseMessageContentForContainer(t *testing.T) {
 	_, err := planFor(t, r)
 	if err == nil || !strings.Contains(err.Error(), "exactly one announcement state") {
 		t.Fatalf("container-confusing message survived: %v", err)
+	}
+}
+
+func TestEnvelopeRejectsOuterMessageWhitespace(t *testing.T) {
+	tag := "v1.2.3"
+	message := messageFixture(tag, false, "One.", "Two.", "Three.")
+	r := releaseFixture(tag, false, "pending", SourceStable, message)
+	if _, err := parseEnvelope(r.Body); err != nil {
+		t.Fatalf("positive control failed to parse: %v", err)
+	}
+	r.Body = strings.Replace(r.Body, message+"\n"+EndMarker, message+"\n\n"+EndMarker, 1)
+	_, err := parseEnvelope(r.Body)
+	if err == nil || !strings.Contains(err.Error(), "outer whitespace") {
+		t.Fatalf("newline-terminated stable payload survived: %v", err)
 	}
 }

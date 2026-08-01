@@ -85,6 +85,12 @@ jobs:
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             >"$RUNNER_TEMP/pre-reserve-release.json"
+          go run ./cmd/announce plan "$GITHUB_EVENT_PATH" \
+            "$RUNNER_TEMP/pre-reserve-release.json" "$RUNNER_TEMP/pre-reserve-plan.json"
+          cmp --silent "$RUNNER_TEMP/plan.json" "$RUNNER_TEMP/pre-reserve-plan.json" || {
+            echo "FATAL: release metadata changed after validation; refusing to reserve." >&2
+            exit 1
+          }
           jq -rj .body "$RUNNER_TEMP/pre-reserve-release.json" \
             >"$RUNNER_TEMP/pre-reserve-body.txt"
           cmp --silent "$RUNNER_TEMP/release-body.txt" \
@@ -114,7 +120,8 @@ jobs:
         run: |
           set -euo pipefail
           message="$RUNNER_TEMP/message.txt"
-          jq -n --rawfile content "$message" '{content:$content}' >"$RUNNER_TEMP/payload.json"
+          jq -n --rawfile content "$message" \
+            '{content:$content, allowed_mentions:{parse:[]}}' >"$RUNNER_TEMP/payload.json"
           set +e
           status="$(curl --silent --output "$RUNNER_TEMP/discord-response.json" \
             --write-out '%{http_code}' -H 'Content-Type: application/json' \
@@ -164,6 +171,11 @@ jobs:
             >"$RUNNER_TEMP/pre-complete-release.json"
           jq -rj .body "$RUNNER_TEMP/pre-complete-release.json" \
             >"$RUNNER_TEMP/pre-complete-body.txt"
+          cmp --silent "$RUNNER_TEMP/reserved-body.txt" \
+            "$RUNNER_TEMP/pre-complete-body.txt" || {
+            echo "FATAL: reserved release body changed before completion; leaving the retry lock intact." >&2
+            exit 1
+          }
           complete="$RUNNER_TEMP/complete-body.txt"
           go run ./cmd/announce complete "$RUNNER_TEMP/pre-complete-body.txt" \
             "$ATTEMPT" "$MESSAGE_ID" "$complete"
