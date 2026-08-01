@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "generation": 2,
+  "generation": 3,
   "delivery_id": 30704809731,
   "subject": "discord-announcement-rollout-probe-v1",
   "source": "workflow-dispatch-probe",
   "body_sha256": "05c62ed8aaef55984d2c61664eda330ada7f20ef7934b9c4fbc6a85b4e78990e",
   "message_sha256": "1d12d36cc3f81935e1e263c95fb55567a05853eba3b24eb3ecaab60996c7c16e",
-  "state": "pending"
+  "state": "sending",
+  "attempt": "30707234428:1"
 }
