@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/klp2/gaem-releases/internal/announce"
 )
@@ -17,7 +18,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: announce validate-draft|plan|state-plan|reserve|complete|reset ...")
+		return fmt.Errorf("usage: announce validate-draft|plan|probe-message|probe-plan|state-plan|reserve|complete|reset ...")
 	}
 	switch args[0] {
 	case "validate-draft":
@@ -50,6 +51,27 @@ func run(args []string) error {
 			return err
 		}
 		return os.WriteFile(args[3], append(out, '\n'), 0o600)
+	case "probe-plan":
+		if len(args) != 4 {
+			return fmt.Errorf("usage: announce probe-plan <run-id> <approved-message-sha256> <plan.json>")
+		}
+		runID, err := strconv.ParseInt(args[1], 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse probe run id: %w", err)
+		}
+		plan, err := announce.BuildProbePlan(runID, args[2])
+		if err != nil {
+			return err
+		}
+		return writeJSON(args[3], plan)
+	case "probe-message":
+		if len(args) != 3 {
+			return fmt.Errorf("usage: announce probe-message <message.txt> <sha256.txt>")
+		}
+		if err := os.WriteFile(args[1], []byte(announce.ProbeMessage), 0o600); err != nil {
+			return err
+		}
+		return os.WriteFile(args[2], []byte(announce.ProbeMessageDigest()+"\n"), 0o600)
 	case "reserve":
 		if len(args) != 5 {
 			return fmt.Errorf("usage: announce reserve <plan.json> <state.json> <run:attempt> <reserved.json>")

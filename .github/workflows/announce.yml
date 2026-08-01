@@ -3,18 +3,24 @@ name: release announcement
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      approved_message_sha256:
+        description: SHA-256 of the exact probe message approved in chat
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  # One CAS branch serializes every release. The expected-head mutation still
+  # One CAS branch serializes every delivery. The expected-head mutation still
   # protects against manual/external writers and ambiguous API responses.
   group: discord-announcement-state
   cancel-in-progress: false
 
 jobs:
-  announce:
+  deliver:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -25,47 +31,69 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Validate the fresh release and announcement
+      - name: Build and validate the fresh delivery plan
         id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ github.event.release.id }}
+          APPROVED_MESSAGE_SHA256: ${{ inputs.approved_message_sha256 }}
         run: |
           set -euo pipefail
-          live="$RUNNER_TEMP/release.json"
           plan="$RUNNER_TEMP/plan.json"
-          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$live"
-          go run ./cmd/announce plan "$GITHUB_EVENT_PATH" "$live" "$plan"
+          case "$GITHUB_EVENT_NAME" in
+            release)
+              live="$RUNNER_TEMP/release.json"
+              gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" >"$live"
+              go run ./cmd/announce plan "$GITHUB_EVENT_PATH" "$live" "$plan"
+              state_path="announcements/v1/$RELEASE_ID.json"
+              delivery_label="announcement-$RELEASE_ID"
+              ;;
+            workflow_dispatch)
+              go run ./cmd/announce probe-plan "$GITHUB_RUN_ID" \
+                "$APPROVED_MESSAGE_SHA256" "$plan"
+              state_path="probes/v1/discord-announcement.json"
+              delivery_label="rollout-probe"
+              ;;
+            *)
+              echo "FATAL: unsupported delivery event." >&2
+              exit 1
+              ;;
+          esac
           action="$(jq -er .action "$plan")"
           reason="$(jq -er .reason "$plan")"
           {
             echo "action=$action"
             echo "reason=$reason"
+            echo "state_path=$state_path"
+            echo "delivery_label=$delivery_label"
           } >>"$GITHUB_OUTPUT"
-          jq -rj '.body // ""' "$plan" >"$RUNNER_TEMP/release-body.txt"
+          jq -rj '.body // ""' "$plan" >"$RUNNER_TEMP/delivery-body.txt"
           jq -rj '.message // ""' "$plan" >"$RUNNER_TEMP/message.txt"
 
-      - name: Report a filtered release
+      - name: Report a filtered delivery
         if: steps.plan.outputs.action == 'skip'
         env:
           REASON: ${{ steps.plan.outputs.reason }}
-        run: echo "Announcement skipped — $REASON."
+        run: echo "Delivery skipped — $REASON."
 
       - name: Inspect external idempotency state
         if: steps.plan.outputs.action == 'announce'
         id: state
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_ID: ${{ github.event.release.id }}
+          STATE_PATH: ${{ steps.plan.outputs.state_path }}
         run: |
           set -euo pipefail
-          state_path="announcements/v1/$RELEASE_ID.json"
           scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-            "$state_path" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+            "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
           go run ./cmd/announce state-plan "$RUNNER_TEMP/plan.json" \
             "$RUNNER_TEMP/state.json" "$RUNNER_TEMP/state-plan.json"
           action="$(jq -er .action "$RUNNER_TEMP/state-plan.json")"
           reason="$(jq -er .reason "$RUNNER_TEMP/state-plan.json")"
+          if [ "$action" = fail ]; then
+            echo "FATAL: $reason" >&2
+            exit 1
+          fi
           {
             echo "action=$action"
             echo "reason=$reason"
@@ -75,48 +103,30 @@ jobs:
         if: steps.plan.outputs.action == 'announce' && steps.state.outputs.action == 'skip'
         env:
           REASON: ${{ steps.state.outputs.reason }}
-        run: echo "Announcement skipped — $REASON."
+        run: echo "Delivery skipped — $REASON."
 
       - name: Verify announcements webhook channel
         if: steps.plan.outputs.action == 'announce' && steps.state.outputs.action == 'reserve'
         env:
           DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
-        run: |
-          set -euo pipefail
-          [ -n "${DISCORD_ANNOUNCE_WEBHOOK:-}" ] || {
-            echo "FATAL: DISCORD_ANNOUNCE_WEBHOOK is not provisioned." >&2
-            exit 1
-          }
-          set +e
-          status="$(curl --silent --output "$RUNNER_TEMP/webhook.json" \
-            --write-out '%{http_code}' "$DISCORD_ANNOUNCE_WEBHOOK" \
-            2>"$RUNNER_TEMP/webhook.err")"
-          curl_rc=$?
-          set -e
-          if [ "$curl_rc" -ne 0 ] || [ "$status" != 200 ]; then
-            echo "FATAL: announcements webhook identity check failed (details suppressed)." >&2
-            exit 1
-          fi
-          jq -e '.channel_id == "1525952505593462995"' \
-            "$RUNNER_TEMP/webhook.json" >/dev/null || {
-            echo "FATAL: webhook does not target #announcements." >&2
-            exit 1
-          }
+        run: scripts/discord-webhook.sh check
 
-      - name: Reserve this send attempt
+      - name: Reserve this delivery attempt
         if: steps.plan.outputs.action == 'announce' && steps.state.outputs.action == 'reserve'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ github.event.release.id }}
+          APPROVED_MESSAGE_SHA256: ${{ inputs.approved_message_sha256 }}
+          STATE_PATH: ${{ steps.plan.outputs.state_path }}
+          DELIVERY_LABEL: ${{ steps.plan.outputs.delivery_label }}
           ATTEMPT: ${{ github.run_id }}:${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          state_path="announcements/v1/$RELEASE_ID.json"
           reserved="$RUNNER_TEMP/reserved-state.json"
           committed=false
           for try in 1 2 3; do
             scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-              "$state_path" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+              "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
             if cmp --silent "$reserved" "$RUNNER_TEMP/state.json" 2>/dev/null; then
               committed=true
               break
@@ -125,8 +135,8 @@ jobs:
               "$RUNNER_TEMP/state.json" "$ATTEMPT" "$reserved"
             head="$(cat "$RUNNER_TEMP/state-head.txt")"
             if scripts/announcement-state.sh cas "$GITHUB_REPOSITORY" announcement-state \
-              "$state_path" "$head" "$reserved" \
-              "ci: reserve Discord announcement $RELEASE_ID" "$RUNNER_TEMP/state-commit.txt"; then
+              "$STATE_PATH" "$head" "$reserved" \
+              "ci: reserve Discord $DELIVERY_LABEL" "$RUNNER_TEMP/state-commit.txt"; then
               committed=true
               break
             fi
@@ -134,92 +144,65 @@ jobs:
           done
           if [ "$committed" != true ]; then
             scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-              "$state_path" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+              "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
             cmp --silent "$reserved" "$RUNNER_TEMP/state.json" || {
               echo "FATAL: reservation CAS did not converge; refusing to send." >&2
               exit 1
             }
           fi
 
-          # The reservation binds the original body and message digests. A
-          # final fresh release read must still reproduce that exact plan; the
-          # workflow never overwrites a concurrent release edit.
-          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
-            >"$RUNNER_TEMP/pre-send-release.json"
-          go run ./cmd/announce plan "$GITHUB_EVENT_PATH" \
-            "$RUNNER_TEMP/pre-send-release.json" "$RUNNER_TEMP/pre-send-plan.json"
+          case "$GITHUB_EVENT_NAME" in
+            release)
+              gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+                >"$RUNNER_TEMP/pre-send-release.json"
+              go run ./cmd/announce plan "$GITHUB_EVENT_PATH" \
+                "$RUNNER_TEMP/pre-send-release.json" "$RUNNER_TEMP/pre-send-plan.json"
+              ;;
+            workflow_dispatch)
+              go run ./cmd/announce probe-plan "$GITHUB_RUN_ID" \
+                "$APPROVED_MESSAGE_SHA256" "$RUNNER_TEMP/pre-send-plan.json"
+              ;;
+            *)
+              echo "FATAL: unsupported delivery event before send." >&2
+              exit 1
+              ;;
+          esac
           cmp --silent "$RUNNER_TEMP/plan.json" "$RUNNER_TEMP/pre-send-plan.json" || {
-            echo "FATAL: release changed after reservation; retry remains locked." >&2
+            echo "FATAL: delivery plan changed after reservation; refusing to POST." >&2
             exit 1
           }
           scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-            "$state_path" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+            "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
           cmp --silent "$reserved" "$RUNNER_TEMP/state.json" || {
             echo "FATAL: reservation changed before send; refusing to POST." >&2
             exit 1
           }
 
-      - name: Send and read back the Discord message
+      - name: Send and read back the approved message
         if: steps.plan.outputs.action == 'announce' && steps.state.outputs.action == 'reserve'
         id: discord
         env:
           DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}
         run: |
-          set -euo pipefail
-          message="$RUNNER_TEMP/message.txt"
-          jq -n --rawfile content "$message" \
-            '{content:$content, allowed_mentions:{parse:[]}}' >"$RUNNER_TEMP/payload.json"
-          set +e
-          status="$(curl --silent --output "$RUNNER_TEMP/discord-response.json" \
-            --write-out '%{http_code}' -H 'Content-Type: application/json' \
-            --request POST --data-binary @"$RUNNER_TEMP/payload.json" \
-            "${DISCORD_ANNOUNCE_WEBHOOK}?wait=true" 2>"$RUNNER_TEMP/discord-send.err")"
-          curl_rc=$?
-          set -e
-          if [ "$curl_rc" -ne 0 ] || [ "$status" != 200 ]; then
-            echo "FATAL: Discord announcement send failed (details suppressed; retry is locked)." >&2
-            exit 1
-          fi
-          message_id="$(jq -er '.id | select(test("^[1-9][0-9]*$"))' \
-            "$RUNNER_TEMP/discord-response.json")"
-          set +e
-          status="$(curl --silent --output "$RUNNER_TEMP/discord-readback.json" \
-            --write-out '%{http_code}' \
-            "${DISCORD_ANNOUNCE_WEBHOOK}/messages/$message_id" \
-            2>"$RUNNER_TEMP/discord-readback.err")"
-          curl_rc=$?
-          set -e
-          if [ "$curl_rc" -ne 0 ] || [ "$status" != 200 ]; then
-            echo "FATAL: Discord announcement readback failed (details suppressed; retry is locked)." >&2
-            exit 1
-          fi
-          jq -e --rawfile expected "$message" \
-            '.channel_id == "1525952505593462995" and .content == $expected' \
-            "$RUNNER_TEMP/discord-readback.json" >/dev/null || {
-            echo "FATAL: Discord readback content or channel disagrees with the approved payload." >&2
-            exit 1
-          }
-          if jq -r .content "$RUNNER_TEMP/discord-readback.json" | grep -Fq '```'; then
-            echo "FATAL: Discord readback contains a code fence." >&2
-            exit 1
-          fi
-          echo "message_id=$message_id" >>"$GITHUB_OUTPUT"
+          scripts/discord-webhook.sh send "$RUNNER_TEMP/message.txt" \
+            "$RUNNER_TEMP/message-id.txt"
+          echo "message_id=$(cat "$RUNNER_TEMP/message-id.txt")" >>"$GITHUB_OUTPUT"
 
-      - name: Record the Discord message id
+      - name: Record and verify the Discord message id
         if: steps.plan.outputs.action == 'announce' && steps.state.outputs.action == 'reserve'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_ID: ${{ github.event.release.id }}
+          STATE_PATH: ${{ steps.plan.outputs.state_path }}
+          DELIVERY_LABEL: ${{ steps.plan.outputs.delivery_label }}
           ATTEMPT: ${{ github.run_id }}:${{ github.run_attempt }}
           MESSAGE_ID: ${{ steps.discord.outputs.message_id }}
         run: |
           set -euo pipefail
-          state_path="announcements/v1/$RELEASE_ID.json"
           complete="$RUNNER_TEMP/complete-state.json"
           committed=false
           for try in 1 2 3; do
             scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-              "$state_path" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+              "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
             if cmp --silent "$complete" "$RUNNER_TEMP/state.json" 2>/dev/null; then
               committed=true
               break
@@ -228,8 +211,8 @@ jobs:
               "$RUNNER_TEMP/state.json" "$ATTEMPT" "$MESSAGE_ID" "$complete"
             head="$(cat "$RUNNER_TEMP/state-head.txt")"
             if scripts/announcement-state.sh cas "$GITHUB_REPOSITORY" announcement-state \
-              "$state_path" "$head" "$complete" \
-              "ci: complete Discord announcement $RELEASE_ID" "$RUNNER_TEMP/state-commit.txt"; then
+              "$STATE_PATH" "$head" "$complete" \
+              "ci: complete Discord $DELIVERY_LABEL" "$RUNNER_TEMP/state-commit.txt"; then
               committed=true
               break
             fi
@@ -237,9 +220,21 @@ jobs:
           done
           if [ "$committed" != true ]; then
             scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-              "$state_path" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+              "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
             cmp --silent "$complete" "$RUNNER_TEMP/state.json" || {
               echo "FATAL: completion CAS did not converge; sent state needs recovery." >&2
               exit 1
             }
           fi
+
+          scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
+            "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+          go run ./cmd/announce state-plan "$RUNNER_TEMP/plan.json" \
+            "$RUNNER_TEMP/state.json" "$RUNNER_TEMP/final-state-plan.json"
+          jq -e --arg attempt "$ATTEMPT" --arg message_id "$MESSAGE_ID" \
+            '.state == "sent" and .attempt == $attempt and .message_id == $message_id' \
+            "$RUNNER_TEMP/state.json" >/dev/null || {
+              echo "FATAL: final delivery state does not bind the sent message." >&2
+              exit 1
+            }
+          echo "Sent state verified for Discord message $MESSAGE_ID."
