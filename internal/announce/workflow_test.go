@@ -33,6 +33,7 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 		"go run ./cmd/announce state-plan",
 		"go run ./cmd/announce reserve",
 		"go run ./cmd/announce complete",
+		"scripts/announcement-state.sh read-until-head",
 		"announcements/v1/$RELEASE_ID.json",
 		"probes/v1/discord-announcement.json",
 		"go run ./cmd/announce probe-plan",
@@ -83,6 +84,11 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 	}
 	if strings.Count(w, `cmp --silent "$reserved" "$RUNNER_TEMP/state.json"`) < 2 {
 		t.Error("workflow does not bind send and ambiguous CAS recovery to the exact reserved state")
+	}
+	if strings.Count(w, "scripts/announcement-state.sh read-until-head") != 3 ||
+		!strings.Contains(w, `reservation_head="$(cat "$RUNNER_TEMP/state-commit.txt")"`) ||
+		!strings.Contains(w, `completion_head="$(cat "$RUNNER_TEMP/state-commit.txt")"`) {
+		t.Error("workflow does not pin post-CAS reads to the exact returned commits")
 	}
 	if strings.Count(w, "go run ./cmd/announce probe-plan") != 2 {
 		t.Error("probe plan is not regenerated immediately before send")
@@ -451,6 +457,114 @@ esac
 	if refRead < 0 || pinnedRead <= refRead || strings.Contains(log, "expression=announcement-state:") {
 		t.Fatalf("state read was not pinned to the resolved head: %q", log)
 	}
+}
+
+func TestAnnouncementStateReadWaitsForFreshExpectedHead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("state helper runs on ubuntu-latest")
+	}
+	for _, command := range []string{"bash", "jq"} {
+		if _, err := exec.LookPath(command); err != nil {
+			t.Skipf("%s not on PATH", command)
+		}
+	}
+	const (
+		parent   = "1111111111111111111111111111111111111111"
+		expected = "2222222222222222222222222222222222222222"
+	)
+	newFixture := func(t *testing.T, neverFresh bool) (string, []string) {
+		t.Helper()
+		dir := t.TempDir()
+		fakeGH := filepath.Join(dir, "gh")
+		fake := `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$FAKE_GH_LOG"
+case " $* " in
+  *" repos/klp2/gaem-releases/git/ref/heads/announcement-state "*)
+    count=0
+    [ ! -f "$FAKE_REF_COUNT" ] || count=$(cat "$FAKE_REF_COUNT")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$FAKE_REF_COUNT"
+    if [ "$FAKE_NEVER_FRESH" = true ] || [ "$count" -eq 1 ]; then
+      printf '%s\n' '{"object":{"sha":"` + parent + `"}}'
+    else
+      printf '%s\n' '{"object":{"sha":"` + expected + `"}}'
+    fi
+    ;;
+  *" expression=` + parent + `:announcements/v1/42.json "*)
+    printf '%s\n' '{"data":{"repository":{"object":{"text":"{\"state\":\"pending\"}\n"}}}}'
+    ;;
+  *" expression=` + expected + `:announcements/v1/42.json "*)
+    printf '%s\n' '{"data":{"repository":{"object":{"text":"{\"state\":\"sending\"}\n"}}}}'
+    ;;
+  *) exit 9 ;;
+esac
+`
+		if err := os.WriteFile(fakeGH, []byte(fake), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		fakeSleep := filepath.Join(dir, "sleep")
+		if err := os.WriteFile(fakeSleep, []byte("#!/usr/bin/env bash\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		env := append(os.Environ(),
+			"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"FAKE_GH_LOG="+filepath.Join(dir, "gh.log"),
+			"FAKE_REF_COUNT="+filepath.Join(dir, "ref-count"),
+			"FAKE_NEVER_FRESH="+map[bool]string{true: "true", false: "false"}[neverFresh],
+		)
+		return dir, env
+	}
+
+	t.Run("stale then fresh", func(t *testing.T) {
+		dir, env := newFixture(t, false)
+		headFile := filepath.Join(dir, "head.txt")
+		stateFile := filepath.Join(dir, "state.json")
+		cmd := exec.Command("bash", filepath.Join("..", "..", "scripts", "announcement-state.sh"),
+			"read-until-head", Repository, "announcement-state", "announcements/v1/42.json",
+			expected, headFile, stateFile)
+		cmd.Env = env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("fresh-head read failed: %v\n%s", err, out)
+		}
+		head, err := os.ReadFile(headFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, err := os.ReadFile(stateFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(head) != expected+"\n" || string(state) != "{\"state\":\"sending\"}\n" {
+			t.Fatalf("fresh read = head %q state %q", head, state)
+		}
+		count, err := os.ReadFile(filepath.Join(dir, "ref-count"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(count) != "2\n" {
+			t.Fatalf("ref reads = %q, want positive stale-then-fresh control", count)
+		}
+	})
+
+	t.Run("never fresh", func(t *testing.T) {
+		dir, env := newFixture(t, true)
+		cmd := exec.Command("bash", filepath.Join("..", "..", "scripts", "announcement-state.sh"),
+			"read-until-head", Repository, "announcement-state", "announcements/v1/42.json",
+			expected, filepath.Join(dir, "head.txt"), filepath.Join(dir, "state.json"))
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		if err == nil || !strings.Contains(string(out), "did not converge to the expected head") {
+			t.Fatalf("non-converging read survived: %v\n%s", err, out)
+		}
+		count, err := os.ReadFile(filepath.Join(dir, "ref-count"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(count) != "10\n" {
+			t.Fatalf("ref reads = %q, want bounded ten-attempt failure", count)
+		}
+	})
 }
 
 func TestPullRequestWorkflowRunsAllGoTests(t *testing.T) {

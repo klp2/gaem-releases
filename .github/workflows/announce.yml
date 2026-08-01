@@ -133,10 +133,12 @@ jobs:
           set -euo pipefail
           reserved="$RUNNER_TEMP/reserved-state.json"
           committed=false
+          reservation_head=
           for try in 1 2 3; do
             scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
               "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
             if cmp --silent "$reserved" "$RUNNER_TEMP/state.json" 2>/dev/null; then
+              reservation_head="$(cat "$RUNNER_TEMP/state-head.txt")"
               committed=true
               break
             fi
@@ -146,6 +148,7 @@ jobs:
             if scripts/announcement-state.sh cas "$GITHUB_REPOSITORY" announcement-state \
               "$STATE_PATH" "$head" "$reserved" \
               "ci: reserve Discord $DELIVERY_LABEL" "$RUNNER_TEMP/state-commit.txt"; then
+              reservation_head="$(cat "$RUNNER_TEMP/state-commit.txt")"
               committed=true
               break
             fi
@@ -158,7 +161,9 @@ jobs:
               echo "FATAL: reservation CAS did not converge; refusing to send." >&2
               exit 1
             }
+            reservation_head="$(cat "$RUNNER_TEMP/state-head.txt")"
           fi
+          printf '%s\n' "$reservation_head" >"$RUNNER_TEMP/reservation-head.txt"
 
           case "$GITHUB_EVENT_NAME" in
             release)
@@ -182,8 +187,9 @@ jobs:
             echo "FATAL: delivery plan changed after reservation; refusing to POST." >&2
             exit 1
           }
-          scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-            "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+          scripts/announcement-state.sh read-until-head "$GITHUB_REPOSITORY" \
+            announcement-state "$STATE_PATH" "$reservation_head" \
+            "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
           cmp --silent "$reserved" "$RUNNER_TEMP/state.json" || {
             echo "FATAL: reservation changed before send; refusing to POST." >&2
             exit 1
@@ -211,10 +217,14 @@ jobs:
           set -euo pipefail
           complete="$RUNNER_TEMP/complete-state.json"
           committed=false
+          completion_head=
+          reservation_head="$(cat "$RUNNER_TEMP/reservation-head.txt")"
+          scripts/announcement-state.sh read-until-head "$GITHUB_REPOSITORY" \
+            announcement-state "$STATE_PATH" "$reservation_head" \
+            "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
           for try in 1 2 3; do
-            scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-              "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
             if cmp --silent "$complete" "$RUNNER_TEMP/state.json" 2>/dev/null; then
+              completion_head="$(cat "$RUNNER_TEMP/state-head.txt")"
               committed=true
               break
             fi
@@ -224,10 +234,13 @@ jobs:
             if scripts/announcement-state.sh cas "$GITHUB_REPOSITORY" announcement-state \
               "$STATE_PATH" "$head" "$complete" \
               "ci: complete Discord $DELIVERY_LABEL" "$RUNNER_TEMP/state-commit.txt"; then
+              completion_head="$(cat "$RUNNER_TEMP/state-commit.txt")"
               committed=true
               break
             fi
             echo "CAS contention while completing (attempt $try of 3); replanning." >&2
+            scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
+              "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
           done
           if [ "$committed" != true ]; then
             scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
@@ -236,10 +249,16 @@ jobs:
               echo "FATAL: completion CAS did not converge; sent state needs recovery." >&2
               exit 1
             }
+            completion_head="$(cat "$RUNNER_TEMP/state-head.txt")"
           fi
 
-          scripts/announcement-state.sh read "$GITHUB_REPOSITORY" announcement-state \
-            "$STATE_PATH" "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+          scripts/announcement-state.sh read-until-head "$GITHUB_REPOSITORY" \
+            announcement-state "$STATE_PATH" "$completion_head" \
+            "$RUNNER_TEMP/state-head.txt" "$RUNNER_TEMP/state.json"
+          cmp --silent "$complete" "$RUNNER_TEMP/state.json" || {
+            echo "FATAL: completed state changed before verification." >&2
+            exit 1
+          }
           go run ./cmd/announce state-plan "$RUNNER_TEMP/plan.json" \
             "$RUNNER_TEMP/state.json" "$RUNNER_TEMP/final-state-plan.json"
           jq -e --arg attempt "$ATTEMPT" --arg message_id "$MESSAGE_ID" \
