@@ -2,7 +2,9 @@ package announce
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -90,6 +92,47 @@ func TestAnnouncementStateUsesExpectedHeadCAS(t *testing.T) {
 		if strings.Contains(s, forbidden) {
 			t.Errorf("CAS helper contains forbidden authority %q", forbidden)
 		}
+	}
+}
+
+func TestAnnouncementStateReadPreservesExactBlobBytes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("state helper runs on ubuntu-latest")
+	}
+	for _, command := range []string{"bash", "jq"} {
+		if _, err := exec.LookPath(command); err != nil {
+			t.Skipf("%s not on PATH", command)
+		}
+	}
+	dir := t.TempDir()
+	fakeGH := filepath.Join(dir, "gh")
+	const oid = "0123456789012345678901234567890123456789"
+	response := `{"data":{"repository":{"ref":{"target":{"oid":"` + oid + `"}},"object":{"text":"{\"state\":\"sending\"}\n"}}}}`
+	if err := os.WriteFile(fakeGH, []byte("#!/bin/sh\nprintf '%s\\n' '"+response+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join("..", "..", "scripts", "announcement-state.sh")
+	headFile := filepath.Join(dir, "head.txt")
+	stateFile := filepath.Join(dir, "state.json")
+	cmd := exec.Command("bash", script, "read", Repository, "announcement-state",
+		"announcements/v1/42.json", headFile, stateFile)
+	cmd.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("state read failed: %v\n%s", err, out)
+	}
+	head, err := os.ReadFile(headFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := os.ReadFile(stateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(head) != oid+"\n" {
+		t.Fatalf("head bytes = %q", head)
+	}
+	if string(state) != "{\"state\":\"sending\"}\n" {
+		t.Fatalf("state bytes = %q; trailing newline was not preserved", state)
 	}
 }
 

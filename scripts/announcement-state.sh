@@ -26,10 +26,11 @@ read)
 		die "cannot read announcement state branch"
 	head=$(jq -er '.data.repository.ref.target.oid | select(test("^[0-9a-f]{40}$"))' <<<"$response") ||
 		die "announcement state branch is missing or malformed"
-	state=$(jq -r '.data.repository.object.text // ""' <<<"$response") ||
-		die "announcement state file response is malformed"
 	printf '%s\n' "$head" >"$head_out"
-	printf '%s' "$state" >"$state_out"
+	# Stream blob text directly: command substitution strips trailing newlines,
+	# while state transitions compare the exact canonical JSON bytes.
+	jq -rj '.data.repository.object.text // ""' <<<"$response" >"$state_out" ||
+		die "announcement state file response is malformed"
 	;;
 cas)
 	[[ $# -eq 7 ]] || die "usage: announcement-state.sh cas <repo> <branch> <path> <expected-head> <state-file> <headline> <commit-out>"
