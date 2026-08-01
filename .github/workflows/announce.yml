@@ -49,9 +49,18 @@ jobs:
               delivery_label="announcement-$RELEASE_ID"
               ;;
             workflow_dispatch)
-              go run ./cmd/announce probe-plan "$GITHUB_RUN_ID" \
-                "$APPROVED_MESSAGE_SHA256" "$plan"
               state_path="probes/v1/discord-announcement.json"
+              probe_delivery_id="$GITHUB_RUN_ID"
+              scripts/announcement-state.sh read "$GITHUB_REPOSITORY" \
+                announcement-state "$state_path" "$RUNNER_TEMP/probe-head.txt" \
+                "$RUNNER_TEMP/probe-state.json"
+              if [ -s "$RUNNER_TEMP/probe-state.json" ]; then
+                probe_delivery_id="$(jq -er \
+                  '.delivery_id | select(type == "number" and . > 0) | tostring' \
+                  "$RUNNER_TEMP/probe-state.json")"
+              fi
+              go run ./cmd/announce probe-plan "$probe_delivery_id" \
+                "$APPROVED_MESSAGE_SHA256" "$plan"
               delivery_label="rollout-probe"
               ;;
             *)
@@ -159,7 +168,9 @@ jobs:
                 "$RUNNER_TEMP/pre-send-release.json" "$RUNNER_TEMP/pre-send-plan.json"
               ;;
             workflow_dispatch)
-              go run ./cmd/announce probe-plan "$GITHUB_RUN_ID" \
+              probe_delivery_id="$(jq -er '.delivery_id | tostring' \
+                "$RUNNER_TEMP/plan.json")"
+              go run ./cmd/announce probe-plan "$probe_delivery_id" \
                 "$APPROVED_MESSAGE_SHA256" "$RUNNER_TEMP/pre-send-plan.json"
               ;;
             *)

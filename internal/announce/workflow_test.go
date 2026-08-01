@@ -39,7 +39,7 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 		"scripts/announcement-state.sh cas",
 		"scripts/discord-webhook.sh check",
 		"scripts/discord-webhook.sh send",
-		`probe-plan "$GITHUB_RUN_ID"`,
+		`probe-plan "$probe_delivery_id"`,
 		"cmp --silent",
 	} {
 		if !strings.Contains(w, want) {
@@ -87,6 +87,11 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 	if strings.Count(w, "go run ./cmd/announce probe-plan") != 2 {
 		t.Error("probe plan is not regenerated immediately before send")
 	}
+	if strings.Count(w, `probe-plan "$probe_delivery_id"`) != 2 ||
+		!strings.Contains(w, `probe_delivery_id="$GITHUB_RUN_ID"`) ||
+		!strings.Contains(w, `.delivery_id | select(type == "number" and . > 0)`) {
+		t.Error("probe recovery does not reuse the fixed state's delivery identity")
+	}
 	if strings.Count(w, `"$APPROVED_MESSAGE_SHA256"`) != 2 {
 		t.Error("initial and pre-send probe plans are not bound to the approved digest")
 	}
@@ -98,7 +103,7 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 		strings.Count(w, "scripts/discord-webhook.sh send") != 1 {
 		t.Error("release and probe deliveries do not converge on one webhook check/send path")
 	}
-	approval := strings.Index(w, `probe-plan "$GITHUB_RUN_ID"`)
+	approval := strings.Index(w, `probe-plan "$probe_delivery_id"`)
 	probeSecret := strings.LastIndex(w, "DISCORD_ANNOUNCE_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCE_WEBHOOK }}")
 	if approval < 0 || probeSecret <= approval {
 		t.Error("probe can access the webhook before binding the exact approved message digest")
@@ -365,12 +370,15 @@ func TestAnnouncementStateUsesExpectedHeadCAS(t *testing.T) {
 		"expectedHeadOid:$head",
 		`branchName:$branch`,
 		`branch="refs/heads/$branch"`,
+		`repos/$repo/git/ref/heads/$branch`,
+		"Cache-Control: no-cache",
+		`expression="$head:$path"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("CAS helper missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"--force", "PATCH", "DISCORD_ANNOUNCE_WEBHOOK"} {
+	for _, forbidden := range []string{"--force", "PATCH", "DISCORD_ANNOUNCE_WEBHOOK", `expression="$branch:$path"`} {
 		if strings.Contains(s, forbidden) {
 			t.Errorf("CAS helper contains forbidden authority %q", forbidden)
 		}
@@ -389,8 +397,21 @@ func TestAnnouncementStateReadPreservesExactBlobBytes(t *testing.T) {
 	dir := t.TempDir()
 	fakeGH := filepath.Join(dir, "gh")
 	const oid = "0123456789012345678901234567890123456789"
-	response := `{"data":{"repository":{"ref":{"target":{"oid":"` + oid + `"}},"object":{"text":"{\"state\":\"sending\"}\n"}}}}`
-	if err := os.WriteFile(fakeGH, []byte("#!/bin/sh\nprintf '%s\\n' '"+response+"'\n"), 0o755); err != nil {
+	response := `{"data":{"repository":{"object":{"text":"{\"state\":\"sending\"}\n"}}}}`
+	fake := `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$FAKE_GH_LOG"
+case " $* " in
+  *" repos/klp2/gaem-releases/git/ref/heads/announcement-state "*)
+    printf '%s\n' '{"object":{"sha":"` + oid + `"}}'
+    ;;
+  *" expression=` + oid + `:announcements/v1/42.json "*)
+    printf '%s\n' '` + response + `'
+    ;;
+  *) exit 9 ;;
+esac
+`
+	if err := os.WriteFile(fakeGH, []byte(fake), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	script := filepath.Join("..", "..", "scripts", "announcement-state.sh")
@@ -398,7 +419,11 @@ func TestAnnouncementStateReadPreservesExactBlobBytes(t *testing.T) {
 	stateFile := filepath.Join(dir, "state.json")
 	cmd := exec.Command("bash", script, "read", Repository, "announcement-state",
 		"announcements/v1/42.json", headFile, stateFile)
-	cmd.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	logFile := filepath.Join(dir, "gh.log")
+	cmd.Env = append(os.Environ(),
+		"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"FAKE_GH_LOG="+logFile,
+	)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("state read failed: %v\n%s", err, out)
 	}
@@ -415,6 +440,16 @@ func TestAnnouncementStateReadPreservesExactBlobBytes(t *testing.T) {
 	}
 	if string(state) != "{\"state\":\"sending\"}\n" {
 		t.Fatalf("state bytes = %q; trailing newline was not preserved", state)
+	}
+	logBytes, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := string(logBytes)
+	refRead := strings.Index(log, "git/ref/heads/announcement-state")
+	pinnedRead := strings.Index(log, "expression="+oid+":announcements/v1/42.json")
+	if refRead < 0 || pinnedRead <= refRead || strings.Contains(log, "expression=announcement-state:") {
+		t.Fatalf("state read was not pinned to the resolved head: %q", log)
 	}
 }
 

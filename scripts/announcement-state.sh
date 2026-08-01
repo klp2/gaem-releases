@@ -18,14 +18,19 @@ read)
 	owner=${repo%%/*}
 	name=${repo#*/}
 	[[ -n "$owner" && -n "$name" && "$owner/$name" == "$repo" ]] || die "repository must be owner/name"
-	expression="$branch:$path"
+	ref_response=$(gh api -H 'Cache-Control: no-cache' \
+		"repos/$repo/git/ref/heads/$branch") ||
+		die "cannot read announcement state branch"
+	head=$(jq -er '.object.sha | select(test("^[0-9a-f]{40}$"))' <<<"$ref_response") ||
+		die "announcement state branch is missing or malformed"
+	expression="$head:$path"
+	# Read through the immutable head: a moving branch expression can resolve
+	# older contents than a separately resolved ref.
 	# shellcheck disable=SC2016 # GraphQL variables are literal $ names.
 	response=$(gh api graphql \
-		-f query='query($owner:String!,$name:String!,$branch:String!,$expression:String!){repository(owner:$owner,name:$name){ref(qualifiedName:$branch){target{oid}} object(expression:$expression){... on Blob{text}}}}' \
-		-f owner="$owner" -f name="$name" -f branch="refs/heads/$branch" -f expression="$expression") ||
-		die "cannot read announcement state branch"
-	head=$(jq -er '.data.repository.ref.target.oid | select(test("^[0-9a-f]{40}$"))' <<<"$response") ||
-		die "announcement state branch is missing or malformed"
+		-f query='query($owner:String!,$name:String!,$expression:String!){repository(owner:$owner,name:$name){object(expression:$expression){... on Blob{text}}}}' \
+		-f owner="$owner" -f name="$name" -f expression="$expression") ||
+		die "cannot read announcement state file"
 	printf '%s\n' "$head" >"$head_out"
 	# Stream blob text directly: command substitution strips trailing newlines,
 	# while state transitions compare the exact canonical JSON bytes.
