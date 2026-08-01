@@ -75,8 +75,8 @@ func TestAnnouncementWorkflowPinsAuthorityAndSecretHandling(t *testing.T) {
 	if strings.Count(w, "go run ./cmd/announce plan") != 2 {
 		t.Error("workflow does not revalidate the full release immediately before send")
 	}
-	if strings.Count(w, "RELEASE_ID: ${{ github.event.release.id }}") != 1 {
-		t.Error("release delivery planning does not receive exactly one event release id")
+	if strings.Count(w, "RELEASE_ID: ${{ github.event.release.id }}") != 2 {
+		t.Error("initial and pre-send release planning do not both receive the event release id")
 	}
 	if strings.Count(w, "pre-send-plan.json") != 3 {
 		t.Error("fresh pre-send plan output is not compared with the original plan")

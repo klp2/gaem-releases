@@ -115,6 +115,7 @@ jobs:
         if: steps.plan.outputs.action == 'announce' && steps.state.outputs.action == 'reserve'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id }}
           APPROVED_MESSAGE_SHA256: ${{ inputs.approved_message_sha256 }}
           STATE_PATH: ${{ steps.plan.outputs.state_path }}
           DELIVERY_LABEL: ${{ steps.plan.outputs.delivery_label }}
