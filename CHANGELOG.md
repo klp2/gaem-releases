@@ -5,6 +5,42 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.13.0] - 2026-08-02
+
+### Added
+- The Preserving Draught — holds hunger off for a while. You can't eat while it does.
+- You gain a neck slot!
+- The Fasting Amulet.
+- The run summary breaks Damage Endured into your three heaviest sources, with the rest folded into one row.
+- Name your character at creation, up to 12 characters. Leave it blank and the game rolls one for you.
+- Settings gains a Fonts & Glyphs screen. If rune sigils show as boxes, press [I] to install gaem's fallback font — or run `gaem fonts install` from a shell. Open a new terminal window afterwards.
+- A capstone perk you've unlocked but never taken now holds a slot on every level-up card until you claim it. Fate's Hand rerolls the other two.
+- Restore a World from a backup on the Worlds screen. A restore always creates a new World rather than overwriting one, so at the five-World cap you have to delete one first.
+- The Patrons codex counts the finished runs you've bound to each patron. Existing Worlds start from zero.
+
+### Changed
+- The per-turn damage-over-time line now names its kinds — "Poisoned 3, Burning 1" rather than a bare total. Still one line.
+- Never seen a forge before? You might now.
+- The dungeon is a bit friendlier to capitalists.
+- Rune fragments drop as piles on the ground; pick them up with `g`. The pouch stacks them by type — up to 7 types — and a fragment it can't take is left where it lies rather than destroyed.
+- Fragment drops retuned.
+- Permanent upgrades wear down. A decayable line you haven't bought in 20 completed runs loses a tier, never below tier 2; re-buying restores it at the current price. Capstone unlocks stay yours once bought.
+- Starvation has been revamped.
+- The meaning of Skulls is hopefully less confusing.
+- Settings takes ↑↓ and Enter now. Every row's letter shortcut still works.
+- The feedback box's message editor has a cursor — move around inside what you've typed instead of backspacing to it.
+- Worlds generate differently from seeds in this version.
+- A run saved by this version cannot be resumed by an older one. The older build backs the save up and starts fresh, and does not hand it back if you upgrade again.
+
+### Fixed
+- Class-veteran achievements unlock again. Wins you recorded before this fix count retroactively — the unlock lands at the end of your next completed run.
+- Vampir lifesteal drains the physical hit, not just rune-proc damage — it had been counting only the procs. The Triune adds another 8 points on top.
+- A trap you've already sprung stops reading as armed once it's off-screen — it went on showing red from memory. Spotted-but-unsprung traps now stay on the map after you walk away, too.
+- The forge takes ↑↓ and Enter, like every other picker.
+- The Worlds create-name hint fits inside its box.
+- The merchant's sell list stays inside a short terminal.
+- The deep upgrades heading no longer advertises a shard cost it doesn't charge.
+
 ## [v0.12.0] - 2026-07-26
 
 ### Added
