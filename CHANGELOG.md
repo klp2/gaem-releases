@@ -5,6 +5,14 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.13.1] - 2026-08-03
+
+### Fixed
+- Starting a new character no longer carries anything over from a run you quit to the menu.
+- Your once-per-run oath reroll refreshes with each new run again.
+- The Worlds list is written more safely, so an interrupted save can't leave it damaged.
+- The help screen scrolls, so every row is reachable — and it now covers the merchant's reroll and services keys.
+
 ## [v0.13.0] - 2026-08-02
 
 ### Added
@@ -97,16 +105,10 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 ## [v0.10.0] - 2026-07-19
 
 ### Added
-- **gaem can update itself.** The update overlay (`[U]`) now downloads, verifies,
-  and installs a new release in place — no more manual download-and-replace. If
-  anything fails it rolls back and drops you to the manual steps, unchanged. You'll
-  install this release the usual way; every update after it can be applied in-game.
-- **Optional auto-update on launch.** A new Settings row (`[D]`) applies a pending
-  update the next time you start the game. Off by default.
-- **Update-check notifications can now be toggled from Settings** — previously this
-  was only controllable through an environment variable.
-- **Stable builds can opt into release-candidate offers**, if you want updates
-  before they land as a stable release.
+- **gaem can update itself.** The update overlay (`[U]`) now downloads, verifies, and installs a new release in place — no more manual download-and-replace. If anything fails it rolls back and drops you to the manual steps, unchanged. You'll install this release the usual way; every update after it can be applied in-game.
+- **Optional auto-update on launch.** A new Settings row (`[D]`) applies a pending update the next time you start the game. Off by default.
+- **Update-check notifications can now be toggled from Settings** — previously this was only controllable through an environment variable.
+- **Stable builds can opt into release-candidate offers**, if you want updates before they land as a stable release.
 
 ## [v0.9.0] - 2026-07-18
 
