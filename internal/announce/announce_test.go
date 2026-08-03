@@ -19,6 +19,28 @@ func releaseFixture(tag string, prerelease bool, state, source, message string) 
 	return Release{ID: 42, TagName: tag, Prerelease: prerelease, HTMLURL: url, Body: body, PublishedAt: &published}
 }
 
+// untaggedDraftURL is the html_url shape GitHub serves for a draft: the tag URL
+// is withheld until publish. Measured 2026-08-03 by creating a draft here and
+// reading it back, with and without the git tag already present — the untagged
+// form holds either way. The hash below is a real observed one, not the value
+// that run produced; each draft gets its own, and none of them is load-bearing.
+//
+// Pairing Draft with the permanent tag URL is a combination the API cannot
+// return, so a draft fixture must carry this shape to measure anything.
+//
+// Red-verified: replacing releaseLink's draft branch with release.HTMLURL reds
+// the happy-path assertion at the top of TestValidateDraftUsesConsumerContract,
+// which is above the table and so stops the subtests running. The untagged-link
+// subtest has its own witness — rewriting this constant to the permanent tag
+// URL reds that subtest alone.
+const untaggedDraftURL = "https://github.com/klp2/gaem-releases/releases/tag/untagged-759142ade0b365798f48"
+
+func asDraft(r Release) Release {
+	r.Draft = true
+	r.HTMLURL = untaggedDraftURL
+	return r
+}
+
 func messageFixture(tag string, rc bool, bullets ...string) string {
 	headline := "## gaem " + tag + " is out"
 	if rc {
@@ -129,8 +151,7 @@ func TestBuildProbePlanUsesFixedApprovedMessage(t *testing.T) {
 func TestValidateDraftUsesConsumerContract(t *testing.T) {
 	tag := "v1.3.0-rc.4"
 	message := messageFixture(tag, true, "One.", "Two.", "Three.")
-	release := releaseFixture(tag, true, "external", SourceRC, message)
-	release.Draft = true
+	release := asDraft(releaseFixture(tag, true, "external", SourceRC, message))
 	_, releaseJSON := eventAndLiveJSON(t, release)
 	if err := ValidateDraft(releaseJSON); err != nil {
 		t.Fatalf("valid draft failed: %v", err)
@@ -142,6 +163,9 @@ func TestValidateDraftUsesConsumerContract(t *testing.T) {
 		want string
 	}{
 		{"published", func(r *Release) { r.Draft = false }, "not a draft"},
+		{"announcement links the draft's own untagged url", func(r *Release) {
+			r.Body = strings.Replace(r.Body, tagURLPrefix+tag, untaggedDraftURL, 1)
+		}, "exactly one release link"},
 		{"unknown tag", func(r *Release) { r.TagName = "v1.3.0-beta.1" }, "not a stable or rc"},
 		{"wrong source", func(r *Release) { r.Body = strings.Replace(r.Body, SourceRC, SourceStable, 1) }, "announcement source"},
 		{"body-local state", func(r *Release) { r.Body = strings.Replace(r.Body, StatePrefix+"external", StatePrefix+"pending", 1) }, "is not external"},
@@ -164,6 +188,28 @@ func TestValidateDraftUsesConsumerContract(t *testing.T) {
 	}
 }
 
+// TestPublishedReleaseValidatesAgainstItsOwnHTMLURL witnesses releaseLink's
+// non-draft branch. Every other fixture sets html_url to the constructed tag
+// URL, so both branches return the same string and the published side has no
+// witness at all. A renamed repository is a state GitHub can represent: the
+// release keeps its identity and html_url follows the new name, so html_url
+// stays authoritative for anything already published.
+func TestPublishedReleaseValidatesAgainstItsOwnHTMLURL(t *testing.T) {
+	tag := "v1.4.0"
+	moved := "https://github.com/klp2/gaem-public-releases/releases/tag/" + tag
+	message := "## gaem " + tag + " is out\nGrab it here: <" + moved +
+		">\n\n- One.\n- Two.\n- Three.\n\nFull notes on the release page."
+	r := releaseFixture(tag, false, "external", SourceStable, message)
+	r.HTMLURL = moved
+	plan, err := planFor(t, r)
+	if err != nil {
+		t.Fatalf("published release was not validated against its own html_url: %v", err)
+	}
+	if plan.Action != ActionAnnounce {
+		t.Fatalf("plan action = %q, want %q", plan.Action, ActionAnnounce)
+	}
+}
+
 func TestBuildPlanSkipsDraftNightlyDiagnosticsAndUnknownTags(t *testing.T) {
 	tests := []struct {
 		name, tag string
@@ -178,7 +224,9 @@ func TestBuildPlanSkipsDraftNightlyDiagnosticsAndUnknownTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			r := releaseFixture(tc.tag, strings.Contains(tc.tag, "-"), "external", SourceRC, "unused")
-			r.Draft = tc.draft
+			if tc.draft {
+				r = asDraft(r)
+			}
 			plan, err := planFor(t, r)
 			if err != nil {
 				t.Fatal(err)
