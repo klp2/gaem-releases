@@ -15,7 +15,7 @@ import (
 const (
 	Repository       = "klp2/gaem-releases"
 	LatestReleaseURL = "https://github.com/klp2/gaem-releases/releases/latest"
-	// releaseLink states when this prefix is and is not the release's own URL.
+	// The permanent link publish assigns; see releaseLink.
 	tagURLPrefix   = "https://github.com/" + Repository + "/releases/tag/"
 	StartMarker    = "<!-- gaem-discord-announcement:v1:start -->"
 	EndMarker      = "<!-- gaem-discord-announcement:v1:end -->"
