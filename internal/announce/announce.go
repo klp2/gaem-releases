@@ -15,18 +15,20 @@ import (
 const (
 	Repository       = "klp2/gaem-releases"
 	LatestReleaseURL = "https://github.com/klp2/gaem-releases/releases/latest"
-	StartMarker      = "<!-- gaem-discord-announcement:v1:start -->"
-	EndMarker        = "<!-- gaem-discord-announcement:v1:end -->"
-	StatePrefix      = "discord-announcement-state: "
-	SourcePrefix     = "discord-announcement-source: "
-	SourceRC         = "changelog-nightly"
-	SourceStable     = "changelog-public-approved"
-	SourceProbe      = "workflow-dispatch-probe"
-	ProbeSubject     = "discord-announcement-rollout-probe-v1"
-	ProbeBody        = "gaem-discord-announcement-rollout-probe:v1"
-	ActionAnnounce   = "announce"
-	ActionSkip       = "skip"
-	ActionFail       = "fail"
+	// releaseLink states when this prefix is and is not the release's own URL.
+	tagURLPrefix   = "https://github.com/" + Repository + "/releases/tag/"
+	StartMarker    = "<!-- gaem-discord-announcement:v1:start -->"
+	EndMarker      = "<!-- gaem-discord-announcement:v1:end -->"
+	StatePrefix    = "discord-announcement-state: "
+	SourcePrefix   = "discord-announcement-source: "
+	SourceRC       = "changelog-nightly"
+	SourceStable   = "changelog-public-approved"
+	SourceProbe    = "workflow-dispatch-probe"
+	ProbeSubject   = "discord-announcement-rollout-probe-v1"
+	ProbeBody      = "gaem-discord-announcement-rollout-probe:v1"
+	ActionAnnounce = "announce"
+	ActionSkip     = "skip"
+	ActionFail     = "fail"
 
 	ProbeMessage = `## gaem announcement pipeline rollout probe
 Latest release: <https://github.com/klp2/gaem-releases/releases/latest>
@@ -243,7 +245,18 @@ func validateEnvelope(release Release, channel, expectedSource string) error {
 	if env.source != expectedSource {
 		return fmt.Errorf("%s release carries announcement source %q, want %q", channel, env.source, expectedSource)
 	}
-	return validateMessage(env.message, release.TagName, release.HTMLURL, channel)
+	return validateMessage(env.message, release.TagName, releaseLink(release), channel)
+}
+
+// releaseLink is the permanent link an announcement must carry. A draft's own
+// html_url is .../releases/tag/untagged-<hash> until publish, so a draft's link
+// comes from its tag. Callers reach this only after classifyRelease matched the
+// tag, so it needs no URL escaping.
+func releaseLink(release Release) string {
+	if release.Draft {
+		return tagURLPrefix + release.TagName
+	}
+	return release.HTMLURL
 }
 
 func InspectState(plan Plan, stateJSON []byte) (StatePlan, error) {

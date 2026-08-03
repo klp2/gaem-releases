@@ -19,6 +19,22 @@ func releaseFixture(tag string, prerelease bool, state, source, message string) 
 	return Release{ID: 42, TagName: tag, Prerelease: prerelease, HTMLURL: url, Body: body, PublishedAt: &published}
 }
 
+// untaggedDraftURL is the html_url GitHub serves for a draft. Measured
+// 2026-08-03 by creating a draft here and reading it back, with and without the
+// git tag already present — the untagged form holds either way.
+//
+// Pairing Draft with the permanent tag URL is a combination the API cannot
+// return, which is what let this gate pass while rejecting every real draft.
+// Mutating releaseLink back to release.HTMLURL reds
+// TestValidateDraftUsesConsumerContract.
+const untaggedDraftURL = "https://github.com/klp2/gaem-releases/releases/tag/untagged-759142ade0b365798f48"
+
+func asDraft(r Release) Release {
+	r.Draft = true
+	r.HTMLURL = untaggedDraftURL
+	return r
+}
+
 func messageFixture(tag string, rc bool, bullets ...string) string {
 	headline := "## gaem " + tag + " is out"
 	if rc {
@@ -129,8 +145,7 @@ func TestBuildProbePlanUsesFixedApprovedMessage(t *testing.T) {
 func TestValidateDraftUsesConsumerContract(t *testing.T) {
 	tag := "v1.3.0-rc.4"
 	message := messageFixture(tag, true, "One.", "Two.", "Three.")
-	release := releaseFixture(tag, true, "external", SourceRC, message)
-	release.Draft = true
+	release := asDraft(releaseFixture(tag, true, "external", SourceRC, message))
 	_, releaseJSON := eventAndLiveJSON(t, release)
 	if err := ValidateDraft(releaseJSON); err != nil {
 		t.Fatalf("valid draft failed: %v", err)
@@ -142,6 +157,9 @@ func TestValidateDraftUsesConsumerContract(t *testing.T) {
 		want string
 	}{
 		{"published", func(r *Release) { r.Draft = false }, "not a draft"},
+		{"announcement links the draft's own untagged url", func(r *Release) {
+			r.Body = strings.Replace(r.Body, tagURLPrefix+tag, untaggedDraftURL, 1)
+		}, "exactly one release link"},
 		{"unknown tag", func(r *Release) { r.TagName = "v1.3.0-beta.1" }, "not a stable or rc"},
 		{"wrong source", func(r *Release) { r.Body = strings.Replace(r.Body, SourceRC, SourceStable, 1) }, "announcement source"},
 		{"body-local state", func(r *Release) { r.Body = strings.Replace(r.Body, StatePrefix+"external", StatePrefix+"pending", 1) }, "is not external"},
@@ -178,7 +196,9 @@ func TestBuildPlanSkipsDraftNightlyDiagnosticsAndUnknownTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			r := releaseFixture(tc.tag, strings.Contains(tc.tag, "-"), "external", SourceRC, "unused")
-			r.Draft = tc.draft
+			if tc.draft {
+				r = asDraft(r)
+			}
 			plan, err := planFor(t, r)
 			if err != nil {
 				t.Fatal(err)
