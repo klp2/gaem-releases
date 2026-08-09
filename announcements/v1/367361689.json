@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "generation": 1,
+  "delivery_id": 367361689,
+  "subject": "v0.14.0",
+  "source": "changelog-public-approved",
+  "body_sha256": "2149afce4f927dae1c5292d11e6b89b7984b063efc036e90a02de4c991f0c066",
+  "message_sha256": "1110ff9e61bb7dc0289add5d006eb6d5a7b9c4b45721fc464bed3692fc5713e4",
+  "state": "sending",
+  "attempt": "31291459936:1"
+}
