@@ -5,6 +5,46 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.14.0] - 2026-08-09
+
+### Added
+- Items sold to the merchant now have their own tab in the merchant UI, and are not destroyed if you reroll the merchant's inventory.
+- Examine mode gets a drawer: details appear in a panel below the map instead of spamming the message log.
+- The messages pane [m] now has a lore panel, and there is more lore to find.
+- Sealed crates and wish fountains list what they might pay before you spend.
+- New background: the Cannibal.
+- New enemies with new abilities to discover.
+- Leveling up now says what its full restore actually paid: "Restored to full. (+38 HP, +19 MP)".
+
+### Changed
+- The rune pouch gains a cursor. Discarding is now a drop — [D] lands the fragment at your feet, at the cost of a turn, rather than destroying it.
+- New runs carry their starting rations in the consumable pouch, not the gear bag. A run saved before this update keeps its bagged rations.
+- The in-run controls hint fits every terminal width, and always shows the help key.
+- Dungeon denizens have strong preferences on where to make their home.
+- Player and mob resistance mechanics improved.
+- More item types have a unique color in your inventory.
+- R on the character screen no longer re-rolls the omen offer — the offer is part of the seed's challenge.
+- Committed coin throws at a fountain spend a turn.
+- The consumable pouch sorts in the same order as the bag.
+- Worlds generate differently from seeds in this version.
+- A save written by this version cannot be read by an older build — and that now includes your profile, not just the run in progress. An older build backs the file up and starts fresh, so downgrading looks like total progress loss.
+
+### Fixed
+- Enemies killed by an explosion's splash now grant XP, gold, loot, essence, bestiary and contract credit like any other kill.
+- Kills from poison, burning, and lava count toward the run's kill totals. Resuming an active run from an older save tops the totals up.
+- Loot can no longer hide the stairs or a vault's Seal pedestal — generated loot avoids them, and anything dropped there keeps the landmark visible.
+- Character creation previews crit, dodge and attack with the run's own formulas — a Scavenger's Eye Mage could be shown a point less attack than the run actually gave.
+- The Mastery ladder lines up in columns instead of stair-stepping.
+- The Codex reserves its scroll gutter, so text no longer runs under the bar.
+- Three achievement reward descriptions matched neither their code nor their effect.
+- A failed World delete no longer leaves a ghost entry that reads as total progress loss on the next launch; a delete that changed nothing is the only thing now reported as "Delete failed".
+- Quick-quaffing with no potion in your consumables pouch now says so, and names how many are sitting in your bag.
+- An unrecognized command-line option is now an error instead of a silent terminal launch, and `--windowed` works as well as `-windowed`.
+- Caps Lock no longer kills your letter commands in silence: after a few dead presses the game says "Nothing responds. Caps Lock?".
+- The help screen's forge line taught the old controls: it now shows the arrows, Enter, and i/r as the actions they are.
+- A lore scroll no longer vanishes on any key. Enter, Space or Escape closes it; anything else leaves it up.
+- The mutations screen names the whole of what a sworn skull does: each one adds a Relic Shard to the purse of a run you win, not just the essence tithe.
+
 ## [v0.13.1] - 2026-08-03
 
 ### Fixed
