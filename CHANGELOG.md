@@ -5,6 +5,31 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.15.0] - 2026-08-10
+
+### Added
+
+- Picky looters now get a picker.
+
+### Changed
+
+- Frozen, Slowed, and Shocked enemies now visibly show their active status and obey the status effect's movement, attack, and ability restrictions.
+- Examine mode explains enemy status effects in detail.
+- Resuming a run now uses `[R]`, leaving `[C]` available for Grimoire Fortification.
+- Nemesis enemies now retain their visible Enraged identity and correctly activate their class affixes.
+
+### Fixed
+
+- Exploding enemies now detonate consistently when killed by status effects, terrain, traps, or chained explosions.
+- Explosion chains now resolve in a stable order, and all explosion kills grant the rewards and progress they should.
+- Saves in a surprising state are less likely to break things.
+- Capstone labels no longer render repeatedly in the Codex.
+- Summoned enemies retain their combat statuses after resuming a saved run.
+
+### Compatibility
+
+- A run saved by this version cannot be resumed by an older build. Older builds back up the newer save and start fresh; the current build continues to migrate older saves forward.
+
 ## [v0.14.0] - 2026-08-09
 
 ### Added
