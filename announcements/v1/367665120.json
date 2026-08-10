@@ -1,11 +1,12 @@
 {
   "version": 1,
-  "generation": 1,
+  "generation": 2,
   "delivery_id": 367665120,
   "subject": "v0.15.0",
   "source": "changelog-public-approved",
   "body_sha256": "63a422ade11e7c9a8d1b0e5623c060b6b8e671a520afe509a7d02b62081a0e51",
   "message_sha256": "58cb89dea2c10aee38897f1258658fa38af745db546c1f4c98bfbf587bb2e782",
-  "state": "sending",
-  "attempt": "31353294217:1"
+  "state": "sent",
+  "attempt": "31353294217:1",
+  "message_id": "1536217972522352710"
 }
