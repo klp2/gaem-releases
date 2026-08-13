@@ -5,6 +5,46 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.16.0] - 2026-08-13
+
+### Added
+
+- New perk: Stoneskin grants 20% physical resistance.
+- Examine mode now lists each enemy's abilities and elite affix.
+- The character sheet gains jump shortcuts plus Defenses and Fortunes sections showing combat stats, typed resistances and their sources, FOV, trap detection, gold multiplier, and effective loot floor.
+- One-time hints in each World now explain elite enemies, revealed traps, beneficial and harmful statuses, merchants, shrines, and forges.
+- The character sheet now explains active player status effects and their remaining duration.
+- Feedback invitations now appear when entering a run and after every run.
+- The Codex Overview now points to ready upgrades and useful goals for the next descent.
+- Press `[T]` in inventory to move one consumable at a time between the bag and pouch, turn-free.
+- [Windowed] The dungeon now has curated sound effects and a distinct ambient soundscape for each region.
+
+### Changed
+
+- Some mobs faced and overcame an identity crisis.
+- Enemies have taken some defensive lessons.
+- Mobs are smarter about when to plunge through lava. Not smart, but smarter.
+
+### Fixed
+
+- Permanent progress changed during a run now survives quit, resume, and terminal-settlement recovery without being lost or counted twice.
+- If a corrupt or newer profile cannot be backed up, gaem now refuses to overwrite the original file.
+- Resuming from a drop-confirmation prompt now cancels it instead of potentially dropping the wrong equipped item.
+- Kills caused by poison, burning, lava, and Triune Tempest chains now finalize normally, including rewards, progress, and explosions.
+- Lore scrolls and ground items sharing a tile now show a stack marker, while revealed traps remain visible over pickups.
+- A failed World creation no longer leaves behind a World that can later reappear under a raw ID.
+- World copies are now written atomically, so an interrupted copy cannot leave partial save data.
+- Forges retain their orange-red landmark colour after leaving sight.
+- Enemies whose Charge is blocked can move normally instead of losing the rest of their turn.
+- Mastery refusal messages now use the same readable run-and-win notation as the mastery ladder.
+- Victory no longer leaves the level-up picker painted over the win screen.
+- Character creation now previews gold, status resistance, and trap detection through the run's own base formulas, including the Rogue's trap-detection bonus.
+- [Terminal] After installing fallback fonts, the font tools now explicitly tell you to quit and relaunch the terminal application before relaunching gaem.
+
+### Compatibility
+
+- A run or profile saved by this version cannot be read by an older build. Older builds back up newer files and start fresh, so downgrading can look like progress loss; the current build continues to migrate older saves forward.
+
 ## [v0.15.0] - 2026-08-10
 
 ### Added
