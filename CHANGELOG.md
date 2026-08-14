@@ -5,6 +5,30 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.17.0] - 2026-08-14
+
+### Added
+
+- Runes and The Forge have been heavily updated, happy tinkering!
+- Enemies no longer restricted to just one ability, though not many have yet taken the time to learn more
+- New additions for you to discover, happy exploring!
+
+### Changed
+
+- Worlds generate differently from seeds in this version.
+- Preserving Draught no longer fills your stomach. It freezes hunger in place, and you cannot eat while it holds.
+- Feedback report rate limits softened to be less annoying.
+- New changes for you to discover, happy exploring!
+
+### Fixed
+
+- A hand-edited or corrupt meta.json no longer crashes the game on the meta menu: mutations this build does not recognize are dropped, the rest of your progress loads, and a notice says how many went.
+- New fixes for you to discover, happy exploring!
+
+### Compatibility
+
+- A run saved by this version cannot be read by an older build. Older builds back up the newer file and start fresh; this build continues to migrate older saves forward.
+
 ## [v0.16.0] - 2026-08-13
 
 ### Added
