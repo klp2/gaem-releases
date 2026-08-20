@@ -5,6 +5,41 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.18.0] - 2026-08-20
+
+### Added
+
+- A mysterious dealer has begun appearing deeper in the dungeon.
+- A new kind of foe can emerge from an unsettled grave.
+- View and change the Seed for your run on the Review screen. Successful run summaries show it again.
+- Harmful status effects now change the color of your character.
+- Pick-up menus now show how eligible gear compares with what you have equipped.
+
+### Changed
+
+- More menu pages can be navigated with both arrow keys and letter selections.
+- Traps are no longer silent.
+- Forge extraction returns twice as many fragments after earning Erased.
+- Run summaries now show a World mark beside the seed when permanent progress changes world generation.
+- Mobs now have resistances.
+- Upgrade capstones are now perks, and join the pool you're offered during a run. A capstone leaves the pool when its upgrade falls below tier 5 and returns after it is restored.
+- Worlds generate differently from seeds in this version.
+- Omen slots must now be purchased. This is true for both new and existing Worlds.
+- Watch-Warden's Blade no longer begins with an extra article in surrounding text; existing graves and epilogues retain their original wording.
+
+### Fixed
+
+- Location overlays now return after a collision-triggered level-up instead of disappearing.
+- Merchant rows retain readable names and item colors in narrow layouts.
+- Numpad corner diagonals now work when aiming skills or moving the examine cursor.
+- Help now documents the pouch's whole-stack drop shortcut.
+- Bosses that are also elite now retain their full loot chance.
+- Lore cards now show Enter, Space, and Escape as close keys when there is room.
+
+### Compatibility
+
+- A run or profile saved by this version cannot be read by an older build. Older builds back up newer data and start fresh; this build migrates older saves forward.
+
 ## [v0.17.0] - 2026-08-14
 
 ### Added
