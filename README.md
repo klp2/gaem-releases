@@ -1,9 +1,13 @@
-# gaem ⚔
+# gaem
 
-> _Description coming soon._
-> <!-- TODO: drop in 2-3 sentences in your voice + maybe an animated dungeon-crawl GIF -->
+gaem is a turn-based roguelike played in a terminal. Create a character,
+descend through a procedurally generated dungeon, and adapt to the equipment
+and abilities you find along the way.
 
-Pre-built cross-platform binaries for **gaem**, a terminal roguelike.
+The game has persistent progression between runs, including upgrades and new
+character options to unlock.
+
+Pre-built binaries are available for Linux, macOS, and Windows.
 
 ## Community & Feedback
 
