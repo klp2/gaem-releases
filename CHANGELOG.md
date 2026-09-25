@@ -5,6 +5,68 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.19.0] - 2026-09-25
+
+### Added
+
+- Enemies can now dodge your attacks, and spells can graze instead of landing in full.
+- Shield Bash sunders armor, Cleave causes bleeding, and a new Sundering Oil lets your melee hits sunder armor too.
+- Golems and fire giants can Slam you. A stun now costs you your next action.
+- Ghostwalk fountains leave you Soaked: fire can't ignite you, and Frozen and Shocked last longer.
+- Lava destroys items left on it.
+- Examine cards and the Bestiary show enemy resistances, and the log says when an enemy shrugs off a status.
+- Enemy examine cards show whether the enemy is alerted to you.
+- A new Help page explains the map's glyphs and sigils.
+- An optional setting auto-equips pickups that are strictly better than your gear. It is off by default.
+- Settings can be opened from the in-run quit menu.
+- Pouch rows show what each consumable does.
+- The swap prompt compares the item on the ground with the one you have equipped.
+- Equipment abilities are listed next to your class skills.
+- Grave examine cards show the fallen hero's epilogue.
+- A pinned Seed can be unpinned from the Review screen.
+- Enemy explosions make a sound and mark the damage on screen.
+- The message log keeps 256 messages.
+- You are told when a capstone perk leaves the pool, and the Upgrades page marks it until you restore it.
+
+### Changed
+
+- Enemy armor now reduces skill damage: melee skills take full armor, volleys half, and spells and Rogue finishers ignore it.
+- Invisibility ends when you attack in melee or use a damaging skill, and the enemy you hit is alerted.
+- The alarm trap now draws every enemy on the floor to the trap for 12 turns.
+- Vigil on armor now softens the first melee hit each turn, and a Vigil Triune reflects hits back.
+- Fractional damage and healing now round up or down by chance, and Luck tilts the odds your way.
+- The crown-singer's song reaches twice as far.
+- Enemy colors now reflect elite affixes as well as status effects.
+- Turn effects on the map use distinct sigils instead of color alone.
+- The character sheet lists active statuses first. Home and End replace the section-jump keys.
+- The build report counts regeneration ticks wasted at full HP or MP.
+- Rune lines show how many copies a higher-tier inscription counts as.
+- Shocked descriptions are shorter.
+- The Forge is named consistently everywhere.
+- Worlds generate differently from seeds in this version.
+
+### Fixed
+
+- Two level-ups on the same turn now each grant their stat pick.
+- Dash no longer lands you on an occupied tile.
+- Sharp Eyes and level-up Wisdom take effect immediately.
+- Numpad 9 and 3 move the examine cursor diagonally.
+- An exhausted perk pool no longer offers the same perk three times.
+- Ascension 8's Frugal discount survives a merchant reroll.
+- An overkill death no longer shows negative HP.
+- Recovered grave weapons keep their color.
+- Smoke Bomb's description now says it stuns and unalerts nearby foes.
+- The Grimoire hint matches the number of pacts.
+- Counts of one read correctly ("1 skull", not "1 skulls").
+- A run saved by a newer build is recovered once this build can read it.
+- An unreadable Worlds index is left in place instead of being overwritten.
+- Installing fonts now finishes registering the font even if the license file fails to copy.
+
+### Compatibility
+
+- A run or profile saved by this version cannot be read by an older build. Older builds back up newer data and start fresh; this build migrates older saves forward.
+- Runs in progress from an older version can be continued, but their Seed no longer reproduces them.
+
 ## [v0.18.0] - 2026-08-20
 
 ### Added
