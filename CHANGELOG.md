@@ -5,6 +5,53 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.20.0] - 2026-10-04
+
+### Added
+
+- The Bestiary now learns as you play. Examine an enemy to record its species, and fighting it reveals its resistances, abilities and damage types.
+- Examined species get a Bestiary dossier of what you have learned, and a glossary explains elite affixes.
+- Examine cards show only the enemy facts you have learned so far.
+- The Worlds screen has a Storage page ([S]). It lists World backups, run backups, leftovers of deleted Worlds and interrupted copies, and deletes the ones you mark after a confirmation. Nothing is deleted automatically.
+- The HP bar flags near death at 25% HP and below, and the low-health sound plays again as your HP keeps falling.
+- The character sheet tells you when dodge above the 50% cap is wasted.
+- A few new oddities are hidden in the dungeon.
+- [Windowed] Mouse support: click through menus, lists, the map and shops, and right-click a map cell to Examine it. Hovering a target previews the targeting ray.
+- [Windowed] An Actions drawer lists every command on screen and says why a disabled one is unavailable.
+- [Windowed] Click a distant cell to walk there one step at a time. Any key or click stops you.
+- [Windowed] Map tilesets: Dungeon Crawl Stone Soup and DawnLike are under Settings > Graphics > Map tiles. ASCII stays the default.
+- [Windowed] Community tilesets load from the `tilesets` folder in the data directory at startup.
+
+### Changed
+
+- Loot drops are rebalanced slightly, with a little more gold.
+- Bestiary damage bonuses are gone. Hunter's Mark is still listed but does nothing for now.
+- Existing Worlds start with an empty Bestiary. A species' kill count comes back once you examine it.
+- When an enemy shrugs off a status, the log no longer names the resistance.
+- The Dealer's table explains staking, pressing and banking.
+- A grave's epilogue starts with "Their story:" so it is not mistaken for the claim reward.
+- Deleting a World leaves its backups for the Storage page to remove, and the confirmation says so.
+- A corrupt saved run is set aside as a backup instead of deleted, and a new run can start.
+- The sharing details page points you to Settings to change sharing.
+- Worlds generate differently from seeds in this version.
+
+### Fixed
+
+- A finished run whose save can't be removed no longer leaves you stuck on the death screen.
+- Upgrades, Grimoire pacts, Mastery and Mutations that fail to save now say so and keep your essence and shards.
+- Loading a den whose Dealer table is gone now tells you, and names any pot that was lost.
+- A saved run with 0 HP is backed up instead of resumed.
+- The game no longer writes a run save it would refuse to load.
+- A quarantined run no longer blocks new runs.
+- Launch and Resume messages say why a save or profile could not be read, backed up or removed.
+- A boss that was saved as an elite resumes as just the boss.
+- [Windowed] In-game feedback and run-log sharing now work in windowed builds.
+
+### Compatibility
+
+- A run saved by this version cannot be read by an older build. Older builds back it up and start fresh; this build migrates older saves forward.
+- Runs in progress from an older version can be continued, but their Seed no longer reproduces them.
+
 ## [v0.19.0] - 2026-09-25
 
 ### Added
