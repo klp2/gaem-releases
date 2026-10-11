@@ -5,6 +5,17 @@ All notable changes to gaem are documented here. This file follows [Keep a Chang
 > Releases prior to v0.1.4 (v0.1.0–v0.1.3) predate this changelog.
 > Their commit-level release notes live on the [Releases page](https://github.com/klp2/gaem-releases/releases).
 
+## [v0.21.0] - 2026-10-11
+
+### Changed
+
+- Previously, once you solved hunger, the rest of the game was too easy. This is a first balance round that attempts to add difficulty and interesting gameplay from other sources than hunger. Good luck!
+- Worlds generate differently from seeds in this version.
+
+### Fixed
+
+- Potions are easier to read in item lists, especially in windowed builds.
+
 ## [v0.20.0] - 2026-10-04
 
 ### Added
